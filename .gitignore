@@ -3,3 +3,6 @@
 *.d
 oftp
 *.exe
+*.obj
+*.lnk
+*.map
