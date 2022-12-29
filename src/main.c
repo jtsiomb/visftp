@@ -1,8 +1,12 @@
-#include <conio.h>
 #include "tgfx.h"
+#include "input.h"
 
 int main(void)
 {
+	union event ev;
+
+	init_input();
+
 	tg_bgchar(' ');
 	tg_clear();
 
@@ -14,11 +18,23 @@ int main(void)
 	tg_text(0, 24, "fooolalala bar");
 /*	tg_setcursor(2, 24);*/
 
-	while(getch() != 27);
+	while(wait_input(&ev)) {
+		switch(ev.type) {
+		case EV_KEY:
+			if(ev.key.key == 27) goto done;
+			break;
 
+		default:
+			break;
+		}
+	}
+
+done:
 	tg_bgchar(' ');
 	tg_bgcolor(0);
 	tg_fgcolor(7);
 	tg_clear();
+
+	cleanup_input();
 	return 0;
 }

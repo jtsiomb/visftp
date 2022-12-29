@@ -1,4 +1,4 @@
-obj = main.obj tgfx.obj tui.obj darray.obj util.obj
+obj = main.obj tgfx.obj tui.obj darray.obj util.obj input.obj
 bin = oftp.exe
 
 !ifdef __UNIX__
