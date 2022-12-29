@@ -1,0 +1,5 @@
+*.o
+*.swp
+*.d
+oftp
+*.exe
