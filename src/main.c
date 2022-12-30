@@ -14,9 +14,10 @@ int main(void)
 	tg_rect("Remote", 0, 0, 40, 23, TGFX_FRAME);
 	tg_rect("Local", 40, 0, 40, 23, TGFX_FRAME);
 
+	tg_bgcolor(0);
 	tg_fgcolor(7);
-	tg_text(0, 24, "fooolalala bar");
-/*	tg_setcursor(2, 24);*/
+	tg_text(0, 23, ">");
+	tg_setcursor(2, 23);
 
 	while(wait_input(&ev)) {
 		switch(ev.type) {

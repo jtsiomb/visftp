@@ -1,0 +1,7 @@
+#!/bin/sh
+
+fname=/etherdfs/oftp.zip
+
+#git archive -o $fname HEAD
+rm -f $fname
+zip $fname Makefile src/*.c src/*.h src/dos/*.c src/dos/*.h src/unix/*.c src/unix/*.h scripts/*
