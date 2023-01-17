@@ -1,6 +1,8 @@
 #ifndef TGFX_H_
 #define TGFX_H_
 
+#include <stdarg.h>
+
 enum {
 	TGFX_FRAME		= 1,
 	TGFX_SHADOW		= 2
@@ -16,6 +18,7 @@ void tg_bgchar(int c);
 void tg_setcursor(int x, int y);
 
 void tg_text(int x, int y, const char *fmt, ...);
+void tg_vtext(int x, int y, const char *fmt, va_list ap);
 
 void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int flags);
 

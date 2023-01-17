@@ -30,4 +30,8 @@ char *strdup_nf_impl(const char *s, const char *file, int line);
 
 int match_prefix(const char *str, const char *prefix);
 
+void errmsg(const char *fmt, ...);
+void warnmsg(const char *fmt, ...);
+void infomsg(const char *fmt, ...);
+
 #endif	/* UTIL_H_ */

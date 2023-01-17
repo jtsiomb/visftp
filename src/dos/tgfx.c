@@ -56,12 +56,18 @@ void tg_setcursor(int x, int y)
 void tg_text(int x, int y, const char *fmt, ...)
 {
 	va_list ap;
-	char buf[128], *ptr;
-	unsigned short *fbptr = framebuf + y * 80 + x;
 
 	va_start(ap, fmt);
-	vsprintf(buf, fmt, ap);
+	tg_vtext(x, y, fmt, ap);
 	va_end(ap);
+}
+
+void tg_vtext(int x, int y, const char *fmt, va_list ap)
+{
+	char buf[256], *ptr;
+	unsigned short *fbptr = framebuf + y * 80 + x;
+
+	vsprintf(buf, fmt, ap);
 
 	ptr = buf;
 	while(*ptr) {

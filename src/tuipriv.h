@@ -3,13 +3,18 @@
 
 #include "tui.h"
 
+enum {
+	TUI_DRAW = TUI_NUM_CALLBACKS,
+	TUI_FREE
+};
+
 #define WCOMMON	\
 	int type; \
 	char *title; \
 	int x, y, width, height; \
 	tui_callback cbfunc[TUI_NUM_CALLBACKS]; \
 	void *cbcls[TUI_NUM_CALLBACKS]; \
-	struct widget *next
+	struct tui_widget *par, *child, *next
 
 struct tui_widget {
 	WCOMMON;

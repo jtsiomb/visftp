@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "util.h"
+#include "tui.h"
 
 void *malloc_nf_impl(size_t sz, const char *file, int line)
 {
@@ -51,4 +52,31 @@ int match_prefix(const char *str, const char *prefix)
 		}
 	}
 	return *prefix ? 0 : 1;
+}
+
+void errmsg(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	tui_vmsgbox(TUI_ERROR, "error", fmt, ap);
+	va_end(ap);
+}
+
+void warnmsg(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	tui_status(TUI_WARN, fmt, ap);
+	va_end(ap);
+}
+
+void infomsg(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	tui_status(TUI_INFO, fmt, ap);
+	va_end(ap);
 }

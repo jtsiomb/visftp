@@ -1,10 +1,12 @@
-obj = main.obj tgfx.obj tui.obj darray.obj util.obj input.obj
+obj = main.obj tgfx.obj tui.obj tui_list.obj darray.obj util.obj input.obj ftp.obj
 bin = oftp.exe
 
 !ifdef __UNIX__
-incpath = -Isrc -Isrc/dos
+incpath = -Isrc -Isrc/dos -I$(WATT_ROOT)/inc
+libs = library $(WATT_ROOT)/lib/wattcpwf.lib
 !else
-incpath = -Isrc -Isrc\dos
+incpath = -Isrc -Isrc\dos -I$(%WATT_ROOT)\inc
+libs = library $(%WATT_ROOT)\lib\wattcpwf.lib
 !endif
 
 #opt = -otexan
@@ -14,6 +16,7 @@ dbg = -d3
 CC = wcc386
 LD = wlink
 CFLAGS = $(warn) $(dbg) $(opt) $(incpath) $(def) -zq -bt=dos
+LDFLAGS = $(libs)
 
 $(bin): $(obj)
 	%write objects.lnk $(obj)
@@ -31,4 +34,5 @@ $(bin): $(obj)
 clean: .symbolic
 	del *.obj
 	del objects.lnk
+	del oftp.map
 	del $(bin)

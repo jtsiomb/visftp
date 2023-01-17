@@ -32,8 +32,64 @@ struct tui_widget *tui_widget(int type)
 void tui_free(struct tui_widget *w)
 {
 	if(w) {
+		if(w->cbfunc[TUI_FREE]) {
+			w->cbfunc[TUI_FREE](w, 0);
+		}
 		free(w->title);
 		free(w);
+	}
+}
+
+void tui_add_widget(struct tui_widget *par, struct tui_widget *w)
+{
+	if(w->par == par) return;
+
+	w->next = par->child;
+	par->child = w;
+	w->par = par;
+}
+
+void tui_remove_widget(struct tui_widget *par, struct tui_widget *w)
+{
+	struct tui_widget *iter, dummy;
+
+	if(w->par != par) {
+		fprintf(stderr, "failed to remove widget %p from %p\n", w, par);
+		return;
+	}
+
+	dummy.next = par->child;
+	iter = &dummy;
+	while(iter->next) {
+		if(iter->next == w) {
+			iter->next = w->next;
+			break;
+		}
+		iter = iter->next;
+	}
+	par->child = dummy.next;
+
+	w->next = 0;
+	w->par = 0;
+}
+
+struct tui_widget *tui_parent(struct tui_widget *w)
+{
+	return w->par;
+}
+
+void tui_draw(struct tui_widget *w)
+{
+	struct tui_widget *iter;
+
+	if(w->cbfunc[TUI_DRAW]) {
+		w->cbfunc[TUI_DRAW](w, 0);
+	}
+
+	iter = w->child;
+	while(iter) {
+		tui_draw(iter);
+		iter = iter->next;
 	}
 }
 
@@ -77,37 +133,57 @@ struct tui_widget *tui_button(const char *title, int x, int y, tui_callback cbfu
 	return w;
 }
 
-struct tui_widget *tui_list(const char *title, int x, int y, int width, int height, tui_callback cbfunc, void *cbdata)
+void tui_wtoscr(struct tui_widget *w, int x, int y, int *retx, int *rety)
 {
-	struct tui_list *w;
-
-	if(!(w = calloc(1, sizeof *w))) {
-		return 0;
+	while(w) {
+		x += w->x;
+		y += w->y;
+		w = w->par;
 	}
-	w->type = TUI_LIST;
-	w->title = strdup(title);
-	w->x = x;
-	w->y = y;
-	w->width = width;
-	w->height = height;
+	*retx = x;
+	*rety = y;
+}
 
-	if(cbfunc) {
-		tui_set_callback((struct tui_widget*)w, TUI_ONMODIFY, cbfunc, cbdata);
+void tui_scrtow(struct tui_widget *w, int x, int y, int *retx, int *rety)
+{
+	while(w) {
+		x -= w->x;
+		y -= w->y;
+		w = w->par;
 	}
-	return (struct tui_widget*)w;
+	*retx = x;
+	*rety = y;
 }
 
 
-void tui_clear_list(struct tui_widget *w)
+void tui_status(int type, const char *fmt, ...)
 {
-	struct tui_list *wl = (struct tui_list*)w;
-	assert(wl->type == TUI_LIST);
-	darr_clear(wl->entries);
+	va_list ap;
+	va_start(ap, fmt);
+	tui_vstatus(type, fmt, ap);
+	va_end(ap);
 }
 
-void tui_add_list_item(struct tui_widget *w, const char *text)
+void tui_vstatus(int type, const char *fmt, va_list ap)
 {
-	struct tui_list *wl = (struct tui_list*)w;
-	assert(wl->type == TUI_LIST);
-	darr_push(wl->entries, &text);
+	/* TODO */
+	tg_color(15);
+	tg_bgcolor(0);
+	tg_vtext(0, 25, fmt, ap);
+}
+
+void tui_msgbox(int type, const char *title, const char *msg, ...)
+{
+	va_list ap;
+	va_start(ap, msg);
+	tui_vmsgbox(type, title, msg, ap);
+	va_end(ap);
+}
+
+void tui_vmsgbox(int type, const char *title, const char *msg, va_list ap)
+{
+	/* TODO */
+	tg_color(15);
+	tg_bgcolor(0);
+	tg_vtext(0, 25, msg, ap);
 }
