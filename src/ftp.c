@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -7,6 +8,11 @@
 #include "darray.h"
 #include "ftp.h"
 #include "util.h"
+
+#ifdef __unix__
+#include <unistd.h>
+#define closesocket(s) close(s)
+#endif
 
 struct ftp *ftp_alloc(void)
 {
@@ -44,8 +50,9 @@ int ftp_connect(struct ftp *ftp, const char *hostname, int port)
 		return -1;
 	}
 
+	memset(&addr, 0, sizeof addr);
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(host->h_addr);
+	addr.sin_addr = *((struct in_addr*)host->h_addr);
 	addr.sin_port = htons(port);
 
 	if(connect(ftp->ctl, (struct sockaddr*)&addr, sizeof addr) == -1) {
@@ -54,7 +61,6 @@ int ftp_connect(struct ftp *ftp, const char *hostname, int port)
 		ftp->ctl = -1;
 		return -1;
 	}
-		
 	return 0;
 }
 

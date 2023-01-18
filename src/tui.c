@@ -54,7 +54,7 @@ void tui_remove_widget(struct tui_widget *par, struct tui_widget *w)
 	struct tui_widget *iter, dummy;
 
 	if(w->par != par) {
-		fprintf(stderr, "failed to remove widget %p from %p\n", w, par);
+		fprintf(stderr, "failed to remove widget %p from %p\n", (void*)w, (void*)par);
 		return;
 	}
 
@@ -91,6 +91,8 @@ void tui_draw(struct tui_widget *w)
 		tui_draw(iter);
 		iter = iter->next;
 	}
+
+	tg_redraw();
 }
 
 void tui_set_callback(struct tui_widget *w, int type, tui_callback func, void *cls)

@@ -1,3 +1,4 @@
+#include <curses.h>
 #include "input.h"
 
 int init_input(void)
@@ -11,5 +12,7 @@ void cleanup_input(void)
 
 int wait_input(union event *ev)
 {
-	return 0;
+	ev->type = EV_KEY;
+	ev->key.key = getch();
+	return 1;
 }

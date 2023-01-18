@@ -4,9 +4,25 @@
 #include <stdarg.h>
 
 enum {
+	TGFX_BLACK,
+	TGFX_BLUE,
+	TGFX_GREEN,
+	TGFX_CYAN,
+	TGFX_RED,
+	TGFX_MAGENTA,
+	TGFX_YELLOW,
+	TGFX_WHITE
+};
+
+enum {
 	TGFX_FRAME		= 1,
 	TGFX_SHADOW		= 2
 };
+
+void tg_init(void);
+void tg_cleanup(void);
+
+void tg_redraw(void);
 
 void tg_clear(void);
 

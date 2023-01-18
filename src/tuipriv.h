@@ -29,6 +29,6 @@ struct tui_list {
 	WCOMMON;
 	char **entries;	/* darr */
 };
-	
+
 
 #endif	/* TUIPRIV_H_ */

@@ -58,9 +58,9 @@ static void draw_list(struct tui_widget *w, void *cls)
 	int i, x, y, num;
 	struct tui_list *wl = (struct tui_list*)w;
 
-	tui_wtoscr(w, 0, 0, &x, &y);	
+	tui_wtoscr(w, 0, 0, &x, &y);
 
-	tg_bgcolor(1);
+	tg_bgcolor(TGFX_BLUE);
 	tg_rect(wl->title, x, y, wl->width, wl->height, TGFX_FRAME);
 
 	num = darr_size(wl->entries);
