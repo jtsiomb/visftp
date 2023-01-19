@@ -33,6 +33,7 @@ union event {
 int init_input(void);
 void cleanup_input(void);
 
-int wait_input(union event *ev);
+int poll_input(union event *ev);
+int have_input(void);
 
 #endif	/* INPUT_H_ */

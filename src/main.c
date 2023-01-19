@@ -1,14 +1,23 @@
+#include <signal.h>
+#include <errno.h>
+#include <sys/select.h>
 #include "tgfx.h"
 #include "input.h"
 #include "tui.h"
 #include "ftp.h"
+
+int proc_input(void);
+int keypress(int key);
 
 struct ftp *ftp;
 struct tui_widget *uilist;
 
 int main(void)
 {
-	union event ev;
+	int i, numsock, maxfd;
+	int ftpsock[16];
+	fd_set rdset;
+	struct timeval tv;
 
 	if(!(ftp = ftp_alloc())) {
 		return 1;
@@ -31,26 +40,82 @@ int main(void)
 	tui_add_list_item(uilist, "another item");
 	tui_add_list_item(uilist, "foo");
 
-	tg_setcursor(0, 24);
+	tg_setcursor(0, 23);
 
 	tui_draw(uilist);
 
-	while(wait_input(&ev)) {
+	for(;;) {
+		FD_ZERO(&rdset);
+		maxfd = 0;
+
+		numsock = ftp_sockets(ftp, ftpsock, sizeof ftpsock);
+		for(i=0; i<numsock; i++) {
+			FD_SET(ftpsock[i], &rdset);
+			if(ftpsock[i] > maxfd) maxfd = ftpsock[i];
+		}
+
+#ifdef __unix__
+		FD_SET(0, &rdset);
+		tv.tv_sec = 120;
+		tv.tv_usec = 0;
+#else
+		tv.tv_sec = tv.tv_usec = 0;
+#endif
+
+		if(select(maxfd + 1, &rdset, 0, 0, &tv) == -1 && errno == EINTR) {
+			continue;
+		}
+
+#ifdef __unix__
+		if(FD_ISSET(0, &rdset)) {
+			if(proc_input() == -1) {
+				break;
+			}
+		}
+#endif
+
+		for(i=0; i<numsock; i++) {
+			if(FD_ISSET(ftpsock[i], &rdset)) {
+				ftp_handle(ftp, ftpsock[i]);
+			}
+		}
+	}
+
+	tg_cleanup();
+	cleanup_input();
+	ftp_close(ftp);
+	ftp_free(ftp);
+	return 0;
+}
+
+int proc_input(void)
+{
+	union event ev;
+
+	while(poll_input(&ev)) {
 		switch(ev.type) {
 		case EV_KEY:
-			if(ev.key.key == 27) goto done;
+			if(keypress(ev.key.key) == -1) {
+				return -1;
+			}
 			break;
 
 		default:
 			break;
 		}
 	}
+	return 0;
+}
 
-done:
-	tg_cleanup();
+int keypress(int key)
+{
+	switch(key) {
+	case 27:
+	case 'q':
+		return -1;
 
-	cleanup_input();
-
-	ftp_free(ftp);
+	default:
+		break;
+	}
 	return 0;
 }

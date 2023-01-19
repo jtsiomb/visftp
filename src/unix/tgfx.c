@@ -35,6 +35,7 @@ void tg_redraw(void)
 
 void tg_clear(void)
 {
+	clear();
 }
 
 

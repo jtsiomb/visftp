@@ -10,9 +10,17 @@ void cleanup_input(void)
 {
 }
 
-int wait_input(union event *ev)
+int poll_input(union event *ev)
 {
-	ev->type = EV_KEY;
-	ev->key.key = getch();
-	return 1;
+	if(have_input()) {
+		ev->type = EV_KEY;
+		ev->key.key = getch();
+		return 1;
+	}
+	return 0;
+}
+
+int have_input(void)
+{
+	return kbhit();
 }
