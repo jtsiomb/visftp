@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <errno.h>
+#include <ctype.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -17,9 +19,14 @@
 #define fcntlsocket		fcntl
 #endif
 
+static int sendcmd(struct ftp *ftp, const char *fmt, ...);
 static int handle_control(struct ftp *ftp);
 static int handle_data(struct ftp *ftp, int s);
 static void proc_control(struct ftp *ftp, const char *buf);
+
+static void cproc_pwd(struct ftp *ftp, int code, const char *buf, void *cls);
+static void cproc_cwd(struct ftp *ftp, int code, const char *buf, void *cls);
+
 
 struct ftp *ftp_alloc(void)
 {
@@ -129,6 +136,23 @@ int ftp_handle(struct ftp *ftp, int s)
 	return -1;
 }
 
+static int sendcmd(struct ftp *ftp, const char *fmt, ...)
+{
+	char buf[256];
+	va_list ap;
+
+	if(ftp->ctl < 0) {
+		return -1;
+	}
+
+	va_start(ap, fmt);
+	vsprintf(buf, fmt, ap);
+	va_end(ap);
+	strcat(buf, "\r\n");
+
+	return send(ftp->ctl, buf, strlen(buf), 0);
+}
+
 static int handle_control(struct ftp *ftp)
 {
 	int i, sz, rd;
@@ -168,8 +192,59 @@ static int handle_data(struct ftp *ftp, int s)
 	return -1;
 }
 
+static int respcode(const char *resp)
+{
+	if(!isdigit(resp[0]) || !isdigit(resp[1]) || !isdigit(resp[2])) {
+		return 0;
+	}
+
+	if(isspace(resp[3])) {
+		return atoi(resp);
+	}
+	if(resp[3] == '-') {
+		return -atoi(resp);
+	}
+	return 0;
+}
+
 static void proc_control(struct ftp *ftp, const char *buf)
 {
+	int code;
+
+	while(*buf && isspace(*buf)) buf++;
+
+	if((code = respcode(buf)) == 0) {
+		warnmsg("ignoring invalid response: %s\n", buf);
+		return;
+	}
+	if(code < 0) {
+		return;	/* ignore continuations for now */
+	}
+
+	if(ftp->cproc) {
+		ftp->cproc(ftp, code, buf, ftp->cproc_cls);
+		ftp->cproc = 0;
+		return;
+	}
+
+	switch(code) {
+	case 220:
+		sendcmd(ftp, "user %s", ftp->user ? ftp->user : "anonymous");
+		break;
+	case 331:
+		sendcmd(ftp, "pass %s", ftp->pass ? ftp->pass : "foobar");
+		break;
+	case 230:
+		ftp->status = 1;
+		infomsg("login successful\n");
+		ftp_pwd(ftp);
+		ftp->modified = 1;
+		break;
+	case 530:
+		ftp->status = 0;
+		errmsg("login failed\n");
+		break;
+	}
 }
 
 int ftp_update(struct ftp *ftp)
@@ -177,7 +252,60 @@ int ftp_update(struct ftp *ftp)
 	return -1;
 }
 
+int ftp_pwd(struct ftp *ftp)
+{
+	sendcmd(ftp, "pwd");
+	ftp->cproc = cproc_pwd;
+	return 0;
+}
+
 int ftp_chdir(struct ftp *ftp, const char *dirname)
 {
-	return -1;
+	// TODO queue
+	sendcmd(ftp, "cwd %s", dirname);
+	ftp->cproc = cproc_cwd;
+	return 0;
+}
+
+static int get_quoted_text(const char *str, char *buf)
+{
+	int len;
+	const char *src, *end;
+
+	if(!(src = strchr(str, '"'))) {
+		return -1;
+	}
+	src++;
+	end = src;
+	while(*end && *end != '"') end++;
+	if(!*end) return -1;
+
+	len = end - src;
+	memcpy(buf, src, len);
+	buf[len] = 0;
+	return 0;
+}
+
+static void cproc_pwd(struct ftp *ftp, int code, const char *buf, void *cls)
+{
+	char *dirname;
+
+	if(code != 257) {
+		warnmsg("pwd failed\n");
+		return;
+	}
+
+	dirname = alloca(strlen(buf) + 1);
+	if(get_quoted_text(buf, dirname) == -1) {
+		warnmsg("pwd: invalid response: %s\n", buf);
+		return;
+	}
+
+	free(ftp->curdir_rem);
+	ftp->curdir_rem = strdup_nf(dirname);
+	ftp->modified = 1;
+}
+
+static void cproc_cwd(struct ftp *ftp, int code, const char *buf, void *cls)
+{
 }

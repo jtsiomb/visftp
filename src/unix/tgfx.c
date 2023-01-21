@@ -10,7 +10,7 @@ static int curses_color(int col);
 void tg_init(void)
 {
 	initscr();
-	raw();
+	cbreak();
 	keypad(stdscr, TRUE);
 	noecho();
 	start_color();

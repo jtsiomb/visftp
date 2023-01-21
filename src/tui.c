@@ -6,6 +6,7 @@
 #include "tuipriv.h"
 #include "tgfx.h"
 #include "darray.h"
+#include "util.h"
 
 
 int tui_init(void)
@@ -99,6 +100,18 @@ void tui_set_callback(struct tui_widget *w, int type, tui_callback func, void *c
 {
 	w->cbfunc[type] = func;
 	w->cbcls[type] = cls;
+}
+
+int tui_set_title(struct tui_widget *w, const char *s)
+{
+	free(w->title);
+	w->title = strdup_nf(s);
+	return 0;
+}
+
+const char *tui_get_title(struct tui_widget *w)
+{
+	return w->title;
 }
 
 struct tui_widget *tui_window(const char *title, int x, int y, int width, int height)

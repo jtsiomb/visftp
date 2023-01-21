@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 #include <signal.h>
 #include <errno.h>
 #include <sys/select.h>
@@ -6,6 +8,7 @@
 #include "tui.h"
 #include "ftp.h"
 
+void updateui(void);
 int proc_input(void);
 int keypress(int key);
 
@@ -79,6 +82,11 @@ int main(void)
 				ftp_handle(ftp, ftpsock[i]);
 			}
 		}
+
+		if(ftp->modified) {
+			updateui();
+			ftp->modified = 0;
+		}
 	}
 
 	tg_cleanup();
@@ -86,6 +94,20 @@ int main(void)
 	ftp_close(ftp);
 	ftp_free(ftp);
 	return 0;
+}
+
+void updateui(void)
+{
+	unsigned int upd = 0;
+
+	if(ftp->curdir_rem && strcmp(tui_get_title(uilist), ftp->curdir_rem) != 0) {
+		tui_set_title(uilist, ftp->curdir_rem);
+		upd |= 1;
+	}
+
+	if(upd & 1) {
+		tui_draw(uilist);
+	}
 }
 
 int proc_input(void)

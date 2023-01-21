@@ -31,6 +31,9 @@ void tui_draw(struct tui_widget *w);
 
 void tui_set_callback(struct tui_widget *w, int type, tui_callback func, void *cls);
 
+int tui_set_title(struct tui_widget *w, const char *s);
+const char *tui_get_title(struct tui_widget *w);
+
 struct tui_widget *tui_window(const char *title, int x, int y, int w, int h);
 struct tui_widget *tui_button(const char *title, int x, int y, tui_callback cbfunc, void *cbdata);
 struct tui_widget *tui_list(const char *title, int x, int y, int w, int h, tui_callback cbfunc, void *cbdata);
