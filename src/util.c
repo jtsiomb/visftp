@@ -54,12 +54,36 @@ int match_prefix(const char *str, const char *prefix)
 	return *prefix ? 0 : 1;
 }
 
+static FILE *logfile;
+
+static void closelog(void)
+{
+	fclose(logfile);
+}
+
+static void logmsg(const char *tag, const char *fmt, va_list ap)
+{
+	if(!logfile) {
+		if(!(logfile = fopen("oftp.log", "w"))) {
+			return;
+		}
+		setvbuf(logfile, 0, _IOLBF, 0);
+		atexit(closelog);
+	}
+	fprintf(logfile, "%s: ", tag);
+	vfprintf(logfile, fmt, ap);
+}
+
 void errmsg(const char *fmt, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmt);
 	tui_vmsgbox(TUI_ERROR, "error", fmt, ap);
+	va_end(ap);
+
+	va_start(ap, fmt);
+	logmsg("error", fmt, ap);
 	va_end(ap);
 }
 
@@ -70,6 +94,10 @@ void warnmsg(const char *fmt, ...)
 	va_start(ap, fmt);
 	tui_status(TUI_WARN, fmt, ap);
 	va_end(ap);
+
+	va_start(ap, fmt);
+	logmsg("warning", fmt, ap);
+	va_end(ap);
 }
 
 void infomsg(const char *fmt, ...)
@@ -78,5 +106,9 @@ void infomsg(const char *fmt, ...)
 
 	va_start(ap, fmt);
 	tui_status(TUI_INFO, fmt, ap);
+	va_end(ap);
+
+	va_start(ap, fmt);
+	logmsg("info", fmt, ap);
 	va_end(ap);
 }

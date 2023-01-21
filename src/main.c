@@ -2,30 +2,40 @@
 #include <string.h>
 #include <signal.h>
 #include <errno.h>
+#include <assert.h>
 #include <sys/select.h>
 #include "tgfx.h"
 #include "input.h"
+#include "util.h"
 #include "tui.h"
 #include "ftp.h"
 
 void updateui(void);
 int proc_input(void);
 int keypress(int key);
+int parse_args(int argc, char **argv);
 
-struct ftp *ftp;
-struct tui_widget *uilist;
+static struct ftp *ftp;
+static struct tui_widget *uilist;
 
-int main(void)
+static char *host = "localhost";
+static int port = 21;
+
+int main(int argc, char **argv)
 {
 	int i, numsock, maxfd;
 	int ftpsock[16];
 	fd_set rdset;
 	struct timeval tv;
 
+	if(parse_args(argc, argv) == -1) {
+		return 1;
+	}
+
 	if(!(ftp = ftp_alloc())) {
 		return 1;
 	}
-	if(ftp_connect(ftp, "192.168.0.4", 21) == -1) {
+	if(ftp_connect(ftp, host, port) == -1) {
 		ftp_free(ftp);
 		return 1;
 	}
@@ -140,4 +150,52 @@ int keypress(int key)
 		break;
 	}
 	return 0;
+}
+
+static const char *usage = "Usage: %s [options] [hostname] [port]\n"
+	"Options:\n"
+	"  -h: print usage information and exit\n";
+
+int parse_args(int argc, char **argv)
+{
+	int i, argidx = 0;
+
+	for(i=1; i<argc; i++) {
+		if(argv[i][0] == '-') {
+			if(argv[i][2] != 0) {
+				goto inval;
+			}
+			switch(argv[i][1]) {
+			case 'h':
+				printf(usage, argv[0]);
+				exit(0);
+
+			default:
+				goto inval;
+			}
+
+		} else {
+			switch(argidx++) {
+			case 0:
+				host = argv[i];
+				break;
+
+			case 1:
+				if((port = atoi(argv[i])) <= 0) {
+					fprintf(stderr, "invalid port number: %s\n", argv[i]);
+					return -1;
+				}
+				break;
+
+			default:
+				goto inval;
+			}
+		}
+	}
+
+	return 0;
+inval:
+	fprintf(stderr, "invalid argument: %s\n", argv[i]);
+	fprintf(stderr, usage, argv[0]);
+	return -1;
 }

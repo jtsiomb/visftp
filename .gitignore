@@ -6,3 +6,4 @@ oftp
 *.obj
 *.lnk
 *.map
+*.log

@@ -268,9 +268,11 @@ static int ftp_active(struct ftp *ftp)
 		return -1;
 	}
 
+	len = sizeof sa;
+	getsockname(ftp->ctl, (struct sockaddr*)&sa, &len);
+
 	sa.sin_family = AF_INET;
 	sa.sin_port = 0;
-	sa.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	if(bind(ftp->lis, (struct sockaddr*)&sa, sizeof sa) == -1) {
 		errmsg("ftp_active: failed to bind listening socket\n");
@@ -281,7 +283,7 @@ static int ftp_active(struct ftp *ftp)
 	listen(ftp->lis, 1);
 
 	len = sizeof sa;
-	if(getsockname(ftp->ctl, (struct sockaddr*)&sa, &len) == -1) {
+	if(getsockname(ftp->lis, (struct sockaddr*)&sa, &len) == -1) {
 		errmsg("ftp_active: failed to retrieve listening socket address\n");
 		closesocket(ftp->lis);
 		ftp->lis = -1;
@@ -290,6 +292,7 @@ static int ftp_active(struct ftp *ftp)
 
 	addr = ntohl(sa.sin_addr.s_addr);
 	port = ntohs(sa.sin_port);
+	infomsg("listening on %s port %d\n", inet_ntoa(sa.sin_addr), port);
 
 	sendcmd(ftp, "PORT %d,%d,%d,%d,%d,%d", addr >> 24, (addr >> 16) & 0xff,
 			(addr >> 8) & 0xff, addr & 0xff, port >> 8, port & 0xff);
@@ -330,8 +333,8 @@ static int sendcmd(struct ftp *ftp, const char *fmt, ...)
 	va_start(ap, fmt);
 	vsprintf(buf, fmt, ap);
 	va_end(ap);
+	infomsg("send: %s\n", buf);
 	strcat(buf, "\r\n");
-
 	return send(ftp->ctl, buf, strlen(buf), 0);
 }
 
@@ -418,8 +421,14 @@ static int respcode(const char *resp)
 static void proc_control(struct ftp *ftp, const char *buf)
 {
 	int code;
+	char *end;
 
 	while(*buf && isspace(*buf)) buf++;
+	if((end = strchr(buf, '\r'))) {
+		*end = 0;
+	}
+
+	infomsg("recv: %s\n", buf);
 
 	if((code = respcode(buf)) == 0) {
 		warnmsg("ignoring invalid response: %s\n", buf);
@@ -620,7 +629,7 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 		/* EOF condition, we got the whole list, update directory entries */
 		/* TODO */
 		rbuf->buf[rbuf->size] = 0;
-		fprintf(stderr, "%s\n", rbuf->buf);
+		infomsg("%s\n", rbuf->buf);
 
 		free(rbuf->buf);
 		free(rbuf);
