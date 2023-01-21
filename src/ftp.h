@@ -20,6 +20,11 @@ enum {
 	FTP_CONN_ACT
 };
 
+enum {
+	FTP_MOD_REMDIR	= 0x100,
+	FTP_MOD_LOCDIR	= 0x200
+};
+
 struct ftp_op {
 	int op;
 	char *arg;
@@ -30,6 +35,9 @@ struct ftp_op {
 struct ftp_dirent {
 	char *name;
 	int type;
+	long size;
+
+	struct ftp_dirent *next;
 };
 
 struct ftp {

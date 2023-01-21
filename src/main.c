@@ -108,10 +108,22 @@ int main(int argc, char **argv)
 
 void updateui(void)
 {
+	struct ftp_dirent *ent;
 	unsigned int upd = 0;
 
 	if(ftp->curdir_rem && strcmp(tui_get_title(uilist), ftp->curdir_rem) != 0) {
 		tui_set_title(uilist, ftp->curdir_rem);
+		upd |= 1;
+	}
+
+	if(ftp->modified & FTP_MOD_REMDIR) {
+		tui_clear_list(uilist);
+
+		ent = ftp->curdir_rem;
+		while(ent) {
+			tui_add_list_item(uilist, ent->name);
+			ent = ent->next;
+		}
 		upd |= 1;
 	}
 

@@ -621,15 +621,94 @@ static int cproc_list(struct ftp *ftp, int code, const char *buf, void *cls)
 	return 0;
 }
 
+static void free_dirlist(struct ftp_dirent *list)
+{
+	struct ftp_dirent *tmp;
+
+	while(list) {
+		tmp = list;
+		list = list->next;
+
+		free(tmp->name);
+		free(tmp);
+	}
+}
+
+#define SKIP_FIELD(p) \
+	do { \
+		while(*(p) && *(p) != '\n' && !isspace(*(p))) (p)++; \
+		while(*(p) && *(p) != '\n' && isspace(*(p))) (p)++; \
+	} while(0)
+
+static int parse_dirent(struct ftp_dirent *ent, const char *line)
+{
+	int len;
+	const char *ptr = line;
+	const char *end;
+
+	if(!(end = strchr(line, '\r')) && !(end = strchr(line, '\n'))) {
+		return -1;
+	}
+
+	if(line[0] == 'd') {
+		ent->type = FTP_DIR;
+	} else {
+		ent->type = FTP_FILE;
+	}
+
+	SKIP_FIELD(ptr);		/* skip mode */
+	SKIP_FIELD(ptr);		/* skip links */
+	SKIP_FIELD(ptr);		/* skip owner */
+	SKIP_FIELD(ptr);		/* skip group */
+
+	if(ent->type == FTP_FILE) {
+		ent->size = atoi(ptr);
+	}
+	SKIP_FIELD(ptr);		/* skip size */
+	SKIP_FIELD(ptr);		/* skip month */
+	SKIP_FIELD(ptr);		/* skip day */
+	SKIP_FIELD(ptr);		/* skip year */
+
+	if(ptr >= end) return -1;
+
+	len = end - ptr;
+	ent->name = malloc(len + 1);
+	memcpy(ent->name, ptr, len);
+	ent->name[len] = 0;
+
+	infomsg("name: %s\n", ent->name);
+	return 0;
+}
+
 static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 {
 	struct recvbuf *rbuf = cls;
 
 	if(sz == 0) {
 		/* EOF condition, we got the whole list, update directory entries */
-		/* TODO */
-		rbuf->buf[rbuf->size] = 0;
-		infomsg("%s\n", rbuf->buf);
+		char *ptr = rbuf->buf;
+		char *end = rbuf->buf + rbuf->size;
+		struct ftp_dirent *tail = 0;
+		struct ftp_dirent *ent;
+
+		free_dirlist(ftp->dent_rem);
+		ftp->dent_rem = 0;
+
+		while(ptr < end) {
+			ent = malloc_nf(sizeof *ent);
+			if(parse_dirent(ent, ptr) != -1) {
+				ent->next = 0;
+				if(!tail) {
+					ftp->dent_rem = tail = ent;
+				} else {
+					tail->next = ent;
+					tail = ent;
+				}
+			}
+			while(*ptr && *ptr != '\n' && *ptr != '\r') ptr++;
+			while(*ptr && (*ptr == '\r' || *ptr == '\n')) ptr++;
+		}
+		ftp->modified |= FTP_MOD_REMDIR;
 
 		free(rbuf->buf);
 		free(rbuf);
