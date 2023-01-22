@@ -353,7 +353,13 @@ static int handle_control(struct ftp *ftp)
 	int i, sz, rd;
 	char *buf, *start, *end;
 
-	while((sz = sizeof ftp->crecv - ftp->num_crecv) > 0) {
+	for(;;) {
+		if((sz = sizeof ftp->crecv - ftp->num_crecv) <= 0) {
+			/* discard buffer */
+			warnmsg("discard buffer\n");
+			sz = sizeof ftp->crecv;
+			ftp->num_crecv = 0;
+		}
 		start = ftp->crecv + ftp->num_crecv;
 		if((rd = recv(ftp->ctl, start, sz, 0)) == -1) {
 			if(errno == EINTR) continue;
@@ -368,7 +374,9 @@ static int handle_control(struct ftp *ftp)
 		end = start + rd;
 		buf = ftp->crecv;
 		for(i=0; i<rd; i++) {
-			if(start[i] == '\n') {
+			if(start[i] == '\r') {
+				start[i] = 0;
+			} else if(start[i] == '\n') {
 				start[i] = 0;
 				proc_control(ftp, buf);
 				buf = start + i + 1;
@@ -377,6 +385,8 @@ static int handle_control(struct ftp *ftp)
 		if(buf != ftp->crecv && buf < end) {
 			ftp->num_crecv = end - buf;
 			memmove(ftp->crecv, buf, ftp->num_crecv);
+		} else {
+			ftp->num_crecv = 0;
 		}
 	}
 	return 0;
@@ -460,6 +470,7 @@ static void proc_control(struct ftp *ftp, const char *buf)
 		}
 		return;
 	}
+	ftp->busy = 0;
 
 	switch(code) {
 	case 220:
@@ -479,7 +490,6 @@ static void proc_control(struct ftp *ftp, const char *buf)
 		errmsg("login failed\n");
 		break;
 	}
-	ftp->busy = 0;
 }
 
 static int newconn(struct ftp *ftp)
