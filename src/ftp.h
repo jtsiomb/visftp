@@ -44,7 +44,7 @@ struct ftp {
 	int ctl, lis, data;	/* sockets */
 	int lis_port;
 
-	int status;
+	int status, busy;
 	char *user, *pass;
 
 	struct ftp_op *qhead, *qtail;

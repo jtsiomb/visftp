@@ -2,6 +2,19 @@
 #define INPUT_H_
 
 enum {
+	KB_DEL = 128,
+	KB_INS,
+	KB_UP,
+	KB_DOWN,
+	KB_LEFT,
+	KB_RIGHT,
+	KB_HOME,
+	KB_END,
+	KB_PGUP,
+	KB_PGDN
+};
+
+enum {
 	EV_KEY,
 	EV_MMOVE,
 	EV_MBUTTON

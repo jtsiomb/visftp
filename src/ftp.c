@@ -20,7 +20,7 @@
 #define fcntlsocket		fcntl
 #endif
 
-#define TIMEOUT	5
+#define TIMEOUT	15
 
 static int newconn(struct ftp *ftp);
 static int sendcmd(struct ftp *ftp, const char *fmt, ...);
@@ -187,7 +187,7 @@ int ftp_queue(struct ftp *ftp, int op, const char *arg)
 {
 	struct ftp_op *fop;
 
-	if(!ftp->qhead) {
+	if(!ftp->busy && !ftp->qhead) {
 		exec_op(ftp, op, arg);
 		return 0;
 	}
@@ -195,15 +195,23 @@ int ftp_queue(struct ftp *ftp, int op, const char *arg)
 	if(!(fop = malloc(sizeof *fop))) {
 		return -1;
 	}
-	if(!(fop->arg = strdup(arg))) {
-		free(fop);
-		return -1;
+	if(arg) {
+		if(!(fop->arg = strdup(arg))) {
+			free(fop);
+			return -1;
+		}
+	} else {
+		fop->arg = 0;
 	}
 	fop->op = op;
 	fop->next = 0;
 
-	ftp->qtail->next = fop;
-	ftp->qtail = fop;
+	if(ftp->qhead) {
+		ftp->qtail->next = fop;
+		ftp->qtail = fop;
+	} else {
+		ftp->qhead = ftp->qtail = fop;
+	}
 	return 0;
 }
 
@@ -330,6 +338,8 @@ static int sendcmd(struct ftp *ftp, const char *fmt, ...)
 		return -1;
 	}
 
+	ftp->busy = 1;
+
 	va_start(ap, fmt);
 	vsprintf(buf, fmt, ap);
 	va_end(ap);
@@ -443,6 +453,7 @@ static void proc_control(struct ftp *ftp, const char *buf)
 	if(ftp->cproc) {
 		if(ftp->cproc(ftp, code, buf, ftp->cproc_cls) <= 0) {
 			ftp->cproc = 0;
+			ftp->busy = 0;
 
 			/* execute next operation if there's one queued */
 			exec_queued(ftp);
@@ -468,6 +479,7 @@ static void proc_control(struct ftp *ftp, const char *buf)
 		errmsg("login failed\n");
 		break;
 	}
+	ftp->busy = 0;
 }
 
 static int newconn(struct ftp *ftp)
@@ -676,7 +688,6 @@ static int parse_dirent(struct ftp_dirent *ent, const char *line)
 	memcpy(ent->name, ptr, len);
 	ent->name[len] = 0;
 
-	infomsg("name: %s\n", ent->name);
 	return 0;
 }
 
@@ -705,8 +716,8 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 					tail = ent;
 				}
 			}
-			while(*ptr && *ptr != '\n' && *ptr != '\r') ptr++;
-			while(*ptr && (*ptr == '\r' || *ptr == '\n')) ptr++;
+			while(ptr < end && *ptr != '\n' && *ptr != '\r') ptr++;
+			while(ptr < end && (*ptr == '\r' || *ptr == '\n')) ptr++;
 		}
 		ftp->modified |= FTP_MOD_REMDIR;
 

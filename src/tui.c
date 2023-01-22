@@ -79,6 +79,11 @@ struct tui_widget *tui_parent(struct tui_widget *w)
 	return w->par;
 }
 
+int tui_isdirty(struct tui_widget *w)
+{
+	return w->dirty;
+}
+
 void tui_draw(struct tui_widget *w)
 {
 	struct tui_widget *iter;
@@ -86,6 +91,7 @@ void tui_draw(struct tui_widget *w)
 	if(w->cbfunc[TUI_DRAW]) {
 		w->cbfunc[TUI_DRAW](w, 0);
 	}
+	w->dirty = 0;
 
 	iter = w->child;
 	while(iter) {

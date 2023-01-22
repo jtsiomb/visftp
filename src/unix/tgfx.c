@@ -1,17 +1,28 @@
 #include <curses.h>
 #include "tgfx.h"
+#include "util.h"
+
+struct cpair {
+	int pair;
+	int fg, bg;
+};
+static struct cpair *colors;
+static int num_colors;
 
 static int fgcol, bgcol;
 static int bgchar;
+static int cur_pair;
 static int cur_x, cur_y;
 
 static int curses_color(int col);
+static void upd_color(void);
 
 void tg_init(void)
 {
 	initscr();
 	cbreak();
 	keypad(stdscr, TRUE);
+	nodelay(stdscr, TRUE);
 	noecho();
 	start_color();
 
@@ -19,7 +30,8 @@ void tg_init(void)
 	bgcol = curses_color(TGFX_BLACK);
 	bgchar = ' ';
 
-	tg_color(fgcol | (bgcol << 4));
+	colors = malloc_nf(COLORS * sizeof *colors);
+	num_colors = 0;
 }
 
 void tg_cleanup(void)
@@ -42,20 +54,17 @@ void tg_clear(void)
 void tg_fgcolor(int col)
 {
 	fgcol = curses_color(col);
-	init_pair(1, fgcol, bgcol);
 }
 
 void tg_bgcolor(int col)
 {
 	bgcol = curses_color(col);
-	init_pair(1, fgcol, bgcol);
 }
 
 void tg_color(int col)
 {
 	fgcol = curses_color(col & 0xf);
 	bgcol = curses_color((col >> 4) & 0xf);
-	init_pair(1, fgcol, bgcol);
 }
 
 void tg_bgchar(int c)
@@ -83,10 +92,11 @@ void tg_text(int x, int y, const char *fmt, ...)
 
 void tg_vtext(int x, int y, const char *fmt, va_list ap)
 {
-	attron(COLOR_PAIR(1));
+	upd_color();
+	attron(COLOR_PAIR(cur_pair));
 	move(y, x);
 	vw_printw(stdscr, fmt, ap);
-	attroff(COLOR_PAIR(1));
+	attroff(COLOR_PAIR(cur_pair));
 }
 
 
@@ -94,7 +104,8 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 {
 	int i;
 
-	attron(COLOR_PAIR(1));
+	upd_color();
+	attron(COLOR_PAIR(cur_pair));
 
 	for(i=0; i<ysz; i++) {
 		move(y + i, x);
@@ -121,7 +132,7 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 		tg_text(x + 2, y, "%s", label);
 	}
 
-	attroff(COLOR_PAIR(1));
+	attroff(COLOR_PAIR(cur_pair));
 }
 
 static int curses_color(int col)
@@ -139,4 +150,28 @@ static int curses_color(int col)
 		break;
 	}
 	return col;
+}
+
+static void upd_color(void)
+{
+	int i;
+
+	for(i=0; i<num_colors; i++) {
+		if(fgcol == colors[i].fg && bgcol == colors[i].bg) {
+			cur_pair = colors[i].pair;
+			return;
+		}
+	}
+
+	/* not found, allocate a new color pair */
+	if(num_colors >= COLORS) {
+		return;
+	}
+	i = num_colors++;
+	cur_pair = num_colors;
+
+	colors[i].fg = fgcol;
+	colors[i].bg = bgcol;
+	colors[i].pair = cur_pair;
+	init_pair(cur_pair, fgcol, bgcol);
 }

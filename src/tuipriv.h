@@ -12,6 +12,7 @@ enum {
 	int type; \
 	char *title; \
 	int x, y, width, height; \
+	int dirty; \
 	tui_callback cbfunc[TUI_NUM_CALLBACKS]; \
 	void *cbcls[TUI_NUM_CALLBACKS]; \
 	struct tui_widget *par, *child, *next
@@ -28,6 +29,8 @@ struct tui_list_entry {
 struct tui_list {
 	WCOMMON;
 	char **entries;	/* darr */
+	int sel;
+	int view_offs;
 };
 
 

@@ -48,10 +48,6 @@ int main(int argc, char **argv)
 	tg_clear();
 
 	uilist = tui_list("Remote", 0, 0, 40, 23, 0, 0);
-	tui_add_list_item(uilist, "first item");
-	tui_add_list_item(uilist, "second item");
-	tui_add_list_item(uilist, "another item");
-	tui_add_list_item(uilist, "foo");
 
 	tg_setcursor(0, 23);
 
@@ -93,10 +89,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if(ftp->modified) {
-			updateui();
-			ftp->modified = 0;
-		}
+		updateui();
 	}
 
 	tg_cleanup();
@@ -106,10 +99,19 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+static int cmpnames(const void *a, const void *b)
+{
+	const char *sa = *(const char**)a;
+	const char *sb = *(const char**)b;
+	infomsg("cmp(%s, %s)\n", sa, sb);
+	return strcmp(sa, sb);
+}
+
 void updateui(void)
 {
 	struct ftp_dirent *ent;
 	unsigned int upd = 0;
+	char buf[128];
 
 	if(ftp->curdir_rem && strcmp(tui_get_title(uilist), ftp->curdir_rem) != 0) {
 		tui_set_title(uilist, ftp->curdir_rem);
@@ -119,15 +121,25 @@ void updateui(void)
 	if(ftp->modified & FTP_MOD_REMDIR) {
 		tui_clear_list(uilist);
 
-		ent = ftp->curdir_rem;
+		ent = ftp->dent_rem;
 		while(ent) {
-			tui_add_list_item(uilist, ent->name);
+			if(ent->type == FTP_DIR) {
+				sprintf(buf, "%s/", ent->name);
+				tui_add_list_item(uilist, buf);
+			} else {
+				tui_add_list_item(uilist, ent->name);
+			}
 			ent = ent->next;
 		}
+
+		//tui_sort_list(uilist, cmpnames);
+		tui_list_select(uilist, 0);
+
+		ftp->modified &= ~FTP_MOD_REMDIR;
 		upd |= 1;
 	}
 
-	if(upd & 1) {
+	if(tui_isdirty(uilist) || upd & 1) {
 		tui_draw(uilist);
 	}
 }
@@ -157,6 +169,19 @@ int keypress(int key)
 	case 27:
 	case 'q':
 		return -1;
+
+	case KB_UP:
+		tui_list_sel_prev(uilist);
+		break;
+	case KB_DOWN:
+		tui_list_sel_next(uilist);
+		break;
+	case KB_LEFT:
+		tui_list_sel_start(uilist);
+		break;
+	case KB_RIGHT:
+		tui_list_sel_end(uilist);
+		break;
 
 	default:
 		break;
