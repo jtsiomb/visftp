@@ -178,13 +178,16 @@ int tui_list_sel_end(struct tui_widget *w)
 
 void tui_sort_list(struct tui_widget *w, int (*cmpfunc)(const void*, const void*))
 {
+	int nelem;
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
 
 	if(!cmpfunc) {
 		cmpfunc = (int (*)(const void*, const void*))strcmp;
 	}
-	qsort(wl->entries, darr_size(wl->entries), sizeof *wl->entries, cmpfunc);
+
+	nelem = darr_size(wl->entries);
+	qsort(wl->entries, nelem, sizeof *wl->entries, cmpfunc);
 }
 
 static void draw_list(struct tui_widget *w, void *cls)

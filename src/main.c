@@ -103,8 +103,15 @@ static int cmpnames(const void *a, const void *b)
 {
 	const char *sa = *(const char**)a;
 	const char *sb = *(const char**)b;
-	infomsg("cmp(%s, %s)\n", sa, sb);
-	return strcmp(sa, sb);
+	int isdir_a, isdir_b;
+
+	isdir_a = sa[strlen(sa) - 1] == '/';
+	isdir_b = sb[strlen(sb) - 1] == '/';
+
+	if(isdir_a == isdir_b) {
+		return strcmp(sa, sb);
+	}
+	return isdir_a ? -1 : 1;
 }
 
 void updateui(void)
@@ -132,7 +139,7 @@ void updateui(void)
 			ent = ent->next;
 		}
 
-		//tui_sort_list(uilist, cmpnames);
+		tui_sort_list(uilist, cmpnames);
 		tui_list_select(uilist, 0);
 
 		ftp->modified &= ~FTP_MOD_REMDIR;
