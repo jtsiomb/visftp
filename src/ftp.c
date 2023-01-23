@@ -22,6 +22,8 @@
 
 #define TIMEOUT	15
 
+static void free_dir(struct ftp_dirent *dir);
+
 static int newconn(struct ftp *ftp);
 static int sendcmd(struct ftp *ftp, const char *fmt, ...);
 static int handle_control(struct ftp *ftp);
@@ -44,6 +46,9 @@ struct ftp *ftp_alloc(void)
 		return 0;
 	}
 	ftp->ctl = ftp->data = ftp->lis = -1;
+
+	ftp->dirent[0] = darr_alloc(0, sizeof *ftp->dirent[0]);
+	ftp->dirent[1] = darr_alloc(0, sizeof *ftp->dirent[1]);
 	return ftp;
 }
 
@@ -54,6 +59,18 @@ void ftp_free(struct ftp *ftp)
 	if(ftp->ctl >= 0) {
 		ftp_close(ftp);
 	}
+
+	free_dir(ftp->dirent[0]);
+	free_dir(ftp->dirent[1]);
+}
+
+static void free_dir(struct ftp_dirent *dir)
+{
+	int i;
+	for(i=0; i<darr_size(dir); i++) {
+		free(dir[i].name);
+	}
+	darr_free(dir);
 }
 
 int ftp_connect(struct ftp *ftp, const char *hostname, int port)
@@ -131,6 +148,10 @@ static void exec_op(struct ftp *ftp, int op, const char *arg)
 
 	case FTP_CHDIR:
 		ftp_chdir(ftp, arg);
+		break;
+
+	case FTP_CDUP:
+		ftp_chdir(ftp, "..");
 		break;
 
 	case FTP_MKDIR:
@@ -516,7 +537,11 @@ int ftp_pwd(struct ftp *ftp)
 
 int ftp_chdir(struct ftp *ftp, const char *dirname)
 {
-	sendcmd(ftp, "cwd %s", dirname);
+	if(strcmp(dirname, "..") == 0) {
+		sendcmd(ftp, "cdup");
+	} else {
+		sendcmd(ftp, "cwd %s", dirname);
+	}
 	ftp->cproc = cproc_cwd;
 	return 0;
 }
@@ -619,15 +644,22 @@ static int cproc_pwd(struct ftp *ftp, int code, const char *buf, void *cls)
 		return -1;
 	}
 
-	free(ftp->curdir_rem);
-	ftp->curdir_rem = strdup_nf(dirname);
-	ftp->modified = 1;
+	free(ftp->curdir[FTP_REMOTE]);
+	ftp->curdir[FTP_REMOTE] = strdup_nf(dirname);
+	ftp->modified = FTP_MOD_REMDIR;
 	return 0;
 }
 
 static int cproc_cwd(struct ftp *ftp, int code, const char *buf, void *cls)
 {
-	return -1;
+	if(code != 250) {
+		warnmsg("cwd failed\n");
+		return -1;
+	}
+
+	ftp_queue(ftp, FTP_PWD, 0);
+	ftp_queue(ftp, FTP_LIST, 0);
+	return 0;
 }
 
 static int cproc_list(struct ftp *ftp, int code, const char *buf, void *cls)
@@ -641,19 +673,6 @@ static int cproc_list(struct ftp *ftp, int code, const char *buf, void *cls)
 		errmsg("failed to retrieve directory listing\n");
 	}
 	return 0;
-}
-
-static void free_dirlist(struct ftp_dirent *list)
-{
-	struct ftp_dirent *tmp;
-
-	while(list) {
-		tmp = list;
-		list = list->next;
-
-		free(tmp->name);
-		free(tmp);
-	}
 }
 
 #define SKIP_FIELD(p) \
@@ -701,30 +720,32 @@ static int parse_dirent(struct ftp_dirent *ent, const char *line)
 	return 0;
 }
 
+static int direntcmp(const void *a, const void *b)
+{
+	const struct ftp_dirent *da = a, *db = b;
+
+	if(da->type == db->type) {
+		return strcmp(da->name, db->name);
+	}
+	return da->type == FTP_DIR ? -1 : 1;
+}
+
 static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 {
+	int num;
 	struct recvbuf *rbuf = cls;
 
 	if(sz == 0) {
 		/* EOF condition, we got the whole list, update directory entries */
 		char *ptr = rbuf->buf;
 		char *end = rbuf->buf + rbuf->size;
-		struct ftp_dirent *tail = 0;
-		struct ftp_dirent *ent;
+		struct ftp_dirent ent;
 
-		free_dirlist(ftp->dent_rem);
-		ftp->dent_rem = 0;
+		darr_clear(ftp->dirent[FTP_REMOTE]);
 
 		while(ptr < end) {
-			ent = malloc_nf(sizeof *ent);
-			if(parse_dirent(ent, ptr) != -1) {
-				ent->next = 0;
-				if(!tail) {
-					ftp->dent_rem = tail = ent;
-				} else {
-					tail->next = ent;
-					tail = ent;
-				}
+			if(parse_dirent(&ent, ptr) != -1) {
+				darr_push(ftp->dirent[FTP_REMOTE], &ent);
 			}
 			while(ptr < end && *ptr != '\n' && *ptr != '\r') ptr++;
 			while(ptr < end && (*ptr == '\r' || *ptr == '\n')) ptr++;
@@ -734,6 +755,9 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 		free(rbuf->buf);
 		free(rbuf);
 		ftp->dproc = 0;
+
+		num = darr_size(ftp->dirent[FTP_REMOTE]);
+		qsort(ftp->dirent[FTP_REMOTE], num, sizeof *ftp->dirent[FTP_REMOTE], direntcmp);
 		return;
 	}
 
@@ -751,4 +775,19 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 
 	memcpy(rbuf->buf + rbuf->size, buf, sz);
 	rbuf->size += sz;
+}
+
+const char *ftp_curdir(struct ftp *ftp, int whichdir)
+{
+	return ftp->curdir[whichdir];
+}
+
+int ftp_num_dirent(struct ftp *ftp, int whichdir)
+{
+	return darr_size(ftp->dirent[whichdir]);
+}
+
+struct ftp_dirent *ftp_dirent(struct ftp *ftp, int whichdir, int idx)
+{
+	return ftp->dirent[whichdir] + idx;
 }

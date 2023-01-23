@@ -35,6 +35,10 @@ static int convkey(int key)
 		return KB_PGUP;
 	case KEY_NPAGE:
 		return KB_PGDN;
+	case KEY_ENTER:
+		return '\n';
+	case KEY_BACKSPACE:
+		return '\b';
 	default:
 		break;
 	}

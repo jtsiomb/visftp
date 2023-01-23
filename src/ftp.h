@@ -6,6 +6,7 @@ enum {FTP_DIR, FTP_FILE};	/* ftp_dirent type */
 enum {
 	FTP_PWD,
 	FTP_CHDIR,
+	FTP_CDUP,
 	FTP_MKDIR,
 	FTP_RMDIR,
 	FTP_DEL,
@@ -18,6 +19,11 @@ enum {
 	FTP_DISC,
 	FTP_CONN_PASV,
 	FTP_CONN_ACT
+};
+
+enum {
+	FTP_REMOTE,
+	FTP_LOCAL
 };
 
 enum {
@@ -36,8 +42,6 @@ struct ftp_dirent {
 	char *name;
 	int type;
 	long size;
-
-	struct ftp_dirent *next;
 };
 
 struct ftp {
@@ -57,8 +61,8 @@ struct ftp {
 	int num_crecv;
 	char drecv[256];
 
-	char *curdir_rem, *curdir_loc;
-	struct ftp_dirent *dent_rem, *dent_loc;
+	char *curdir[2];
+	struct ftp_dirent *dirent[2];		/* dynamic array */
 
 	int last_resp;
 	int modified;
@@ -88,6 +92,10 @@ int ftp_delete(struct ftp *ftp, const char *fname);
 int ftp_list(struct ftp *ftp);
 int ftp_retrieve(struct ftp *ftp, const char *fname);
 int ftp_store(struct ftp *ftp, const char *fname);
+
+const char *ftp_curdir(struct ftp *ftp, int whichdir);
+int ftp_num_dirent(struct ftp *ftp, int whichdir);
+struct ftp_dirent *ftp_dirent(struct ftp *ftp, int whichdir, int idx);
 
 
 #endif	/* FTP_H_ */
