@@ -187,7 +187,6 @@ int keypress(int key)
 		break;
 
 	case '\b':
-		infomsg("CDUP\n");
 		ftp_queue(ftp, FTP_CDUP, 0);
 		break;
 

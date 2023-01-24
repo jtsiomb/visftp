@@ -31,6 +31,7 @@ static int handle_data(struct ftp *ftp, int s);
 static void proc_control(struct ftp *ftp, const char *buf);
 
 static int cproc_active(struct ftp *ftp, int code, const char *buf, void *cls);
+static int cproc_pasv(struct ftp *ftp, int code, const char *buf, void *cls);
 static int cproc_pwd(struct ftp *ftp, int code, const char *buf, void *cls);
 static int cproc_cwd(struct ftp *ftp, int code, const char *buf, void *cls);
 
@@ -46,6 +47,7 @@ struct ftp *ftp_alloc(void)
 		return 0;
 	}
 	ftp->ctl = ftp->data = ftp->lis = -1;
+	ftp->passive = 1;
 
 	ftp->dirent[0] = darr_alloc(0, sizeof *ftp->dirent[0]);
 	ftp->dirent[1] = darr_alloc(0, sizeof *ftp->dirent[1]);
@@ -330,6 +332,22 @@ static int ftp_active(struct ftp *ftp)
 	return 0;
 }
 
+static int ftp_passive(struct ftp *ftp)
+{
+	if(ftp->lis >= 0) {
+		closesocket(ftp->lis);
+		ftp->lis = -1;
+	}
+	if(ftp->data >= 0) {
+		closesocket(ftp->data);
+		ftp->data = -1;
+	}
+
+	sendcmd(ftp, "PASV");
+	ftp->cproc = cproc_pasv;
+	return 0;
+}
+
 int ftp_handle(struct ftp *ftp, int s)
 {
 	if(s == ftp->ctl) {
@@ -515,9 +533,6 @@ static void proc_control(struct ftp *ftp, const char *buf)
 
 static int newconn(struct ftp *ftp)
 {
-	if(ftp_active(ftp) == -1) {
-		return -1;
-	}
 	ftp_queue(ftp, FTP_PWD, 0);
 	ftp_queue(ftp, FTP_LIST, 0);
 	return 0;
@@ -561,6 +576,26 @@ int ftp_delete(struct ftp *ftp, const char *fname)
 	return -1;
 }
 
+static int prepare_data(struct ftp *ftp)
+{
+	if(ftp->data >= 0) {
+		return 0;
+	}
+
+	if(ftp->passive) {
+		ftp_passive(ftp);
+		ftp_waitresp(ftp, TIMEOUT);
+	} else {
+		if(ftp_active(ftp) == -1) {
+			return -1;
+		}
+	}
+	if(ftp->data == -1) {
+		return -1;
+	}
+	return 0;
+}
+
 struct recvbuf {
 	char *buf;
 	long size, bufsz;
@@ -569,6 +604,10 @@ struct recvbuf {
 int ftp_list(struct ftp *ftp)
 {
 	struct recvbuf *rbuf;
+
+	if(prepare_data(ftp)) {
+		return -1;
+	}
 
 	if(!(rbuf = malloc(sizeof *rbuf))) {
 		errmsg("failed to allocate receive buffer\n");
@@ -626,6 +665,63 @@ static int cproc_active(struct ftp *ftp, int code, const char *buf, void *cls)
 	} else {
 		ftp->status = FTP_CONN_ACT;
 	}
+	return 0;
+}
+
+static int cproc_pasv(struct ftp *ftp, int code, const char *buf, void *cls)
+{
+	const char *str;
+	unsigned int addr[6];
+	struct sockaddr_in sa;
+	unsigned int ipaddr;
+	int port;
+
+	if(code != 227) {
+		errmsg("ftp_passive failed\n");
+		goto nopasv;
+	}
+
+	str = buf;
+	while(*str) {
+		if(sscanf(str, "%u,%u,%u,%u,%u,%u", addr, addr + 1, addr + 2, addr + 3,
+					addr + 4, addr + 5) == 6) {
+			break;
+		}
+		str++;
+	}
+	if(!*str || (addr[0] | addr[1] | addr[2] | addr[3] | addr[4] | addr[5]) >= 256) {
+		errmsg("ftp_passive: failed to parse response: %s\n", buf);
+		goto nopasv;
+	}
+	port = (addr[4] << 8) | addr[5];
+	ipaddr = ((uint32_t)addr[0] << 24) | ((uint32_t)addr[1] << 16) |
+		((uint32_t)addr[2] << 8) | addr[3];
+
+	if((ftp->data = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
+		fprintf(stderr, "ftp_passive: failed to allocate socket\n");
+		goto nopasv;
+	}
+
+	infomsg("passive mode: %d.%d.%d.%d port %d\n", addr[0], addr[1], addr[2], addr[3],
+			port);
+
+	sa.sin_family = AF_INET;
+	sa.sin_addr.s_addr = htonl(ipaddr);
+	sa.sin_port = htons(port);
+
+	if(connect(ftp->data, (struct sockaddr*)&sa, sizeof sa) == -1) {
+		errmsg("ftp_passive: failed to connect to %s:%p\n", inet_ntoa(sa.sin_addr), port);
+		close(ftp->data);
+		ftp->data = -1;
+		goto nopasv;
+	}
+
+	ftp->status = FTP_CONN_PASV;
+	return 0;
+
+nopasv:
+	ftp->passive = 0;
+	ftp_active(ftp);
 	return 0;
 }
 

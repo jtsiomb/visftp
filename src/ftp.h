@@ -50,6 +50,7 @@ struct ftp {
 
 	int status, busy;
 	char *user, *pass;
+	int passive;
 
 	struct ftp_op *qhead, *qtail;
 
