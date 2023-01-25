@@ -42,6 +42,9 @@ static int convkey(int key)
 	default:
 		break;
 	}
+	if(key >= KEY_F(1) && key <= KEY_F(12)) {
+		return KB_F1 + (key - KEY_F(1));
+	}
 	if(key < 128) {
 		return key;
 	}

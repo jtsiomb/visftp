@@ -22,13 +22,7 @@ enum {
 };
 
 enum {
-	FTP_REMOTE,
-	FTP_LOCAL
-};
-
-enum {
-	FTP_MOD_REMDIR	= 0x100,
-	FTP_MOD_LOCDIR	= 0x200
+	FTP_MOD_DIR	= 0x100
 };
 
 struct ftp_op {
@@ -62,8 +56,8 @@ struct ftp {
 	int num_crecv;
 	char drecv[256];
 
-	char *curdir[2];
-	struct ftp_dirent *dirent[2];		/* dynamic array */
+	char *curdir;
+	struct ftp_dirent *dirent;		/* dynamic array */
 
 	int last_resp;
 	int modified;
@@ -94,9 +88,10 @@ int ftp_list(struct ftp *ftp);
 int ftp_retrieve(struct ftp *ftp, const char *fname);
 int ftp_store(struct ftp *ftp, const char *fname);
 
-const char *ftp_curdir(struct ftp *ftp, int whichdir);
-int ftp_num_dirent(struct ftp *ftp, int whichdir);
-struct ftp_dirent *ftp_dirent(struct ftp *ftp, int whichdir, int idx);
+const char *ftp_curdir(struct ftp *ftp);
+int ftp_num_dirent(struct ftp *ftp);
+struct ftp_dirent *ftp_dirent(struct ftp *ftp, int idx);
 
+int ftp_direntcmp(const void *a, const void *b);
 
 #endif	/* FTP_H_ */

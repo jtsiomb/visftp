@@ -12,7 +12,7 @@ enum {
 	int type; \
 	char *title; \
 	int x, y, width, height; \
-	int dirty; \
+	int focus, dirty; \
 	tui_callback cbfunc[TUI_NUM_CALLBACKS]; \
 	void *cbcls[TUI_NUM_CALLBACKS]; \
 	struct tui_widget *par, *child, *next

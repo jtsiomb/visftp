@@ -3,23 +3,38 @@
 #include <signal.h>
 #include <errno.h>
 #include <assert.h>
+#ifdef __MSDOS__
+#include <direct.h>
+#else
+#include <unistd.h>
+#include <dirent.h>
+#endif
+#include <sys/stat.h>
 #include <sys/select.h>
 #include "tgfx.h"
 #include "input.h"
 #include "util.h"
 #include "tui.h"
 #include "ftp.h"
+#include "darray.h"
 
 void updateui(void);
+int update_localdir(void);
 int proc_input(void);
 int keypress(int key);
 int parse_args(int argc, char **argv);
 
 static struct ftp *ftp;
-static struct tui_widget *uilist;
+static struct tui_widget *uilist[2];
+
+static int focus;
 
 static char *host = "localhost";
 static int port = 21;
+
+static char curdir[PATH_MAX + 1];
+static struct ftp_dirent *localdir;
+
 
 int main(int argc, char **argv)
 {
@@ -31,6 +46,10 @@ int main(int argc, char **argv)
 	if(parse_args(argc, argv) == -1) {
 		return 1;
 	}
+
+	localdir = darr_alloc(0, sizeof *localdir);
+	getcwd(curdir, sizeof curdir);
+	update_localdir();
 
 	if(!(ftp = ftp_alloc())) {
 		return 1;
@@ -47,11 +66,15 @@ int main(int argc, char **argv)
 	tg_bgchar(' ');
 	tg_clear();
 
-	uilist = tui_list("Remote", 0, 0, 40, 23, 0, 0);
+	uilist[0] = tui_list("Remote", 0, 0, 40, 23, 0, 0);
+	uilist[1] = tui_list("Local", 40, 0, 40, 23, 0, 0);
+	focus = 0;
+	tui_focus(uilist[focus], 1);
 
 	tg_setcursor(0, 23);
 
-	tui_draw(uilist);
+	tui_draw(uilist[0]);
+	tui_draw(uilist[1]);
 
 	for(;;) {
 		FD_ZERO(&rdset);
@@ -107,35 +130,92 @@ void updateui(void)
 	char buf[128];
 	const char *remdir;
 
-	remdir = ftp_curdir(ftp, FTP_REMOTE);
-	if(remdir && strcmp(tui_get_title(uilist), remdir) != 0) {
-		tui_set_title(uilist, remdir);
+	remdir = ftp_curdir(ftp);
+	if(remdir && strcmp(tui_get_title(uilist[0]), remdir) != 0) {
+		tui_set_title(uilist[0], remdir);
 		upd |= 1;
 	}
 
-	if(ftp->modified & FTP_MOD_REMDIR) {
-		tui_clear_list(uilist);
+	if(ftp->modified & FTP_MOD_DIR) {
+		tui_clear_list(uilist[0]);
 
-		num = ftp_num_dirent(ftp, FTP_REMOTE);
+		num = ftp_num_dirent(ftp);
 		for(i=0; i<num; i++) {
-			ent = ftp_dirent(ftp, FTP_REMOTE, i);
+			ent = ftp_dirent(ftp, i);
 			if(ent->type == FTP_DIR) {
 				sprintf(buf, "%s/", ent->name);
-				tui_add_list_item(uilist, buf);
+				tui_add_list_item(uilist[0], buf);
 			} else {
-				tui_add_list_item(uilist, ent->name);
+				tui_add_list_item(uilist[0], ent->name);
 			}
 		}
 
-		tui_list_select(uilist, 0);
+		tui_list_select(uilist[0], 0);
 
-		ftp->modified &= ~FTP_MOD_REMDIR;
+		ftp->modified &= ~FTP_MOD_DIR;
 		upd |= 1;
 	}
 
-	if(tui_isdirty(uilist) || upd & 1) {
-		tui_draw(uilist);
+	if(strcmp(tui_get_title(uilist[1]), curdir) != 0) {
+		tui_clear_list(uilist[1]);
+		num = darr_size(localdir);
+		for(i=0; i<num; i++) {
+			ent = localdir + i;
+			if(ent->type == FTP_DIR) {
+				sprintf(buf, "%s/", ent->name);
+				tui_add_list_item(uilist[1], buf);
+			} else {
+				tui_add_list_item(uilist[1], ent->name);
+			}
+		}
+		tui_list_select(uilist[1], 0);
+		tui_set_title(uilist[1], curdir);
+		upd |= 2;
 	}
+
+	if(tui_isdirty(uilist[0]) || upd & 1) {
+		tui_draw(uilist[0]);
+	}
+	if(tui_isdirty(uilist[1]) || upd & 2) {
+		tui_draw(uilist[1]);
+	}
+}
+
+int update_localdir(void)
+{
+	DIR *dir;
+	struct dirent *dent;
+	struct stat st;
+	struct ftp_dirent ent;
+
+	if(!(dir = opendir(curdir))) {
+		errmsg("failed to open directory: %s\n", curdir);
+		return -1;
+	}
+
+	darr_clear(localdir);
+	while((dent = readdir(dir))) {
+		ent.name = strdup_nf(dent->d_name);
+		if(strcmp(dent->d_name, ".") == 0) continue;
+
+		if(stat(dent->d_name, &st) == 0) {
+			if(S_ISDIR(st.st_mode)) {
+				ent.type = FTP_DIR;
+			} else {
+				ent.type = FTP_FILE;
+			}
+			ent.size = st.st_size;
+		} else {
+			ent.type = FTP_FILE;
+			ent.size = 0;
+		}
+
+		darr_push(localdir, &ent);
+	}
+	closedir(dir);
+
+	qsort(localdir, darr_size(localdir), sizeof *localdir, ftp_direntcmp);
+	return 0;
 }
 
 int proc_input(void)
@@ -160,34 +240,64 @@ int proc_input(void)
 int keypress(int key)
 {
 	int sel;
-	const char *name;
 
 	switch(key) {
 	case 27:
 	case 'q':
+	case KB_F10:
 		return -1;
 
+	case '\t':
+		tui_focus(uilist[focus], 0);
+		focus ^= 1;
+		tui_focus(uilist[focus], 1);
+		break;
+
 	case KB_UP:
-		tui_list_sel_prev(uilist);
+		tui_list_sel_prev(uilist[focus]);
 		break;
 	case KB_DOWN:
-		tui_list_sel_next(uilist);
+		tui_list_sel_next(uilist[focus]);
 		break;
 	case KB_LEFT:
-		tui_list_sel_start(uilist);
+		tui_list_sel_start(uilist[focus]);
 		break;
 	case KB_RIGHT:
-		tui_list_sel_end(uilist);
+		tui_list_sel_end(uilist[focus]);
 		break;
 
 	case '\n':
-		sel = tui_get_list_sel(uilist);
-		name = ftp_dirent(ftp, FTP_REMOTE, sel)->name;
-		ftp_queue(ftp, FTP_CHDIR, name);
+		sel = tui_get_list_sel(uilist[focus]);
+		if(focus == 0) {
+			struct ftp_dirent *ent = ftp_dirent(ftp, sel);
+			if(ent->type == FTP_DIR) {
+				ftp_queue(ftp, FTP_CHDIR, ent->name);
+			} else {
+				/* TODO */
+			}
+		} else {
+			if(localdir[sel].type == FTP_DIR) {
+				if(chdir(localdir[sel].name) == -1) {
+					errmsg("failed to change directory: %s\n", localdir[sel].name);
+				} else {
+					getcwd(curdir, sizeof curdir);
+					update_localdir();
+				}
+			} else {
+				/* TODO */
+			}
+		}
 		break;
 
 	case '\b':
-		ftp_queue(ftp, FTP_CDUP, 0);
+		if(focus == 0) {
+			ftp_queue(ftp, FTP_CDUP, 0);
+		} else {
+			if(chdir("..") == 0) {
+				getcwd(curdir, sizeof curdir);
+				update_localdir();
+			}
+		}
 		break;
 
 	default:

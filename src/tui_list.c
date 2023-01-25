@@ -56,6 +56,8 @@ void tui_clear_list(struct tui_widget *w)
 	}
 	darr_clear(wl->entries);
 	wl->dirty = 1;
+
+	tui_call_callback(w, TUI_ONMODIFY);
 }
 
 void tui_add_list_item(struct tui_widget *w, const char *text)
@@ -66,6 +68,8 @@ void tui_add_list_item(struct tui_widget *w, const char *text)
 	str = strdup_nf(text);
 	darr_push(wl->entries, &str);
 	wl->dirty = 1;
+
+	tui_call_callback(w, TUI_ONMODIFY);
 }
 
 int tui_num_list_items(struct tui_widget *w)
@@ -106,6 +110,7 @@ int tui_list_select(struct tui_widget *w, int idx)
 	}
 
 	wl->dirty = 1;
+	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
@@ -132,6 +137,7 @@ int tui_list_sel_next(struct tui_widget *w)
 		wl->view_offs = wl->sel - wl->height;
 	}
 	wl->dirty = 1;
+	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
@@ -147,6 +153,7 @@ int tui_list_sel_prev(struct tui_widget *w)
 		wl->view_offs = wl->sel;
 	}
 	wl->dirty = 1;
+	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
@@ -158,6 +165,7 @@ int tui_list_sel_start(struct tui_widget *w)
 	wl->sel = 0;
 	wl->view_offs = 0;
 	wl->dirty = 1;
+	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
@@ -173,6 +181,7 @@ int tui_list_sel_end(struct tui_widget *w)
 	wl->view_offs = nelem - wl->height;
 	if(wl->view_offs < 0) wl->view_offs = 0;
 	wl->dirty = 1;
+	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
@@ -188,6 +197,9 @@ void tui_sort_list(struct tui_widget *w, int (*cmpfunc)(const void*, const void*
 
 	nelem = darr_size(wl->entries);
 	qsort(wl->entries, nelem, sizeof *wl->entries, cmpfunc);
+
+	wl->dirty = 1;
+	tui_call_callback(w, TUI_ONMODIFY);
 }
 
 static void draw_list(struct tui_widget *w, void *cls)
@@ -209,7 +221,7 @@ static void draw_list(struct tui_widget *w, void *cls)
 	x++;
 	for(i=0; i<num; i++) {
 		idx = i + wl->view_offs;
-		if(idx == wl->sel) {
+		if(w->focus && idx == wl->sel) {
 			tg_bgcolor(TGFX_CYAN);
 			tg_fgcolor(TGFX_BLUE);
 

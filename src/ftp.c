@@ -49,8 +49,7 @@ struct ftp *ftp_alloc(void)
 	ftp->ctl = ftp->data = ftp->lis = -1;
 	ftp->passive = 1;
 
-	ftp->dirent[0] = darr_alloc(0, sizeof *ftp->dirent[0]);
-	ftp->dirent[1] = darr_alloc(0, sizeof *ftp->dirent[1]);
+	ftp->dirent = darr_alloc(0, sizeof *ftp->dirent);
 	return ftp;
 }
 
@@ -62,8 +61,7 @@ void ftp_free(struct ftp *ftp)
 		ftp_close(ftp);
 	}
 
-	free_dir(ftp->dirent[0]);
-	free_dir(ftp->dirent[1]);
+	free_dir(ftp->dirent);
 }
 
 static void free_dir(struct ftp_dirent *dir)
@@ -740,9 +738,9 @@ static int cproc_pwd(struct ftp *ftp, int code, const char *buf, void *cls)
 		return -1;
 	}
 
-	free(ftp->curdir[FTP_REMOTE]);
-	ftp->curdir[FTP_REMOTE] = strdup_nf(dirname);
-	ftp->modified = FTP_MOD_REMDIR;
+	free(ftp->curdir);
+	ftp->curdir = strdup_nf(dirname);
+	ftp->modified = FTP_MOD_DIR;
 	return 0;
 }
 
@@ -816,7 +814,7 @@ static int parse_dirent(struct ftp_dirent *ent, const char *line)
 	return 0;
 }
 
-static int direntcmp(const void *a, const void *b)
+int ftp_direntcmp(const void *a, const void *b)
 {
 	const struct ftp_dirent *da = a, *db = b;
 
@@ -837,23 +835,23 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 		char *end = rbuf->buf + rbuf->size;
 		struct ftp_dirent ent;
 
-		darr_clear(ftp->dirent[FTP_REMOTE]);
+		darr_clear(ftp->dirent);
 
 		while(ptr < end) {
 			if(parse_dirent(&ent, ptr) != -1) {
-				darr_push(ftp->dirent[FTP_REMOTE], &ent);
+				darr_push(ftp->dirent, &ent);
 			}
 			while(ptr < end && *ptr != '\n' && *ptr != '\r') ptr++;
 			while(ptr < end && (*ptr == '\r' || *ptr == '\n')) ptr++;
 		}
-		ftp->modified |= FTP_MOD_REMDIR;
+		ftp->modified |= FTP_MOD_DIR;
 
 		free(rbuf->buf);
 		free(rbuf);
 		ftp->dproc = 0;
 
-		num = darr_size(ftp->dirent[FTP_REMOTE]);
-		qsort(ftp->dirent[FTP_REMOTE], num, sizeof *ftp->dirent[FTP_REMOTE], direntcmp);
+		num = darr_size(ftp->dirent);
+		qsort(ftp->dirent, num, sizeof *ftp->dirent, ftp_direntcmp);
 		return;
 	}
 
@@ -873,17 +871,17 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 	rbuf->size += sz;
 }
 
-const char *ftp_curdir(struct ftp *ftp, int whichdir)
+const char *ftp_curdir(struct ftp *ftp)
 {
-	return ftp->curdir[whichdir];
+	return ftp->curdir;
 }
 
-int ftp_num_dirent(struct ftp *ftp, int whichdir)
+int ftp_num_dirent(struct ftp *ftp)
 {
-	return darr_size(ftp->dirent[whichdir]);
+	return darr_size(ftp->dirent);
 }
 
-struct ftp_dirent *ftp_dirent(struct ftp *ftp, int whichdir, int idx)
+struct ftp_dirent *ftp_dirent(struct ftp *ftp, int idx)
 {
-	return ftp->dirent[whichdir] + idx;
+	return ftp->dirent + idx;
 }

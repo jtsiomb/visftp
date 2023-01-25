@@ -11,7 +11,20 @@ enum {
 	KB_HOME,
 	KB_END,
 	KB_PGUP,
-	KB_PGDN
+	KB_PGDN,
+
+	KB_F1,
+	KB_F2,
+	KB_F3,
+	KB_F4,
+	KB_F5,
+	KB_F6,
+	KB_F7,
+	KB_F8,
+	KB_F9,
+	KB_F10,
+	KB_F11,
+	KB_F12
 };
 
 enum {

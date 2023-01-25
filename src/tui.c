@@ -108,6 +108,24 @@ void tui_set_callback(struct tui_widget *w, int type, tui_callback func, void *c
 	w->cbcls[type] = cls;
 }
 
+void tui_call_callback(struct tui_widget *w, int type)
+{
+	if(w->cbfunc[type]) {
+		w->cbfunc[type](w, w->cbcls[type]);
+	}
+}
+
+void tui_focus(struct tui_widget *w, int focus)
+{
+	focus = focus ? 1 : 0;
+	if(w->focus == focus) {
+		return;
+	}
+	w->focus = focus;
+	w->dirty = 1;
+	tui_call_callback(w, TUI_ONFOCUS);
+}
+
 int tui_set_title(struct tui_widget *w, const char *s)
 {
 	free(w->title);

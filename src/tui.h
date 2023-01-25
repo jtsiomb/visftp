@@ -14,6 +14,7 @@ enum { TUI_UNKNOWN, TUI_WINDOW, TUI_BUTTON, TUI_LIST };
 enum {
 	TUI_ONCLICK,
 	TUI_ONMODIFY,
+	TUI_ONFOCUS,
 	TUI_NUM_CALLBACKS
 };
 
@@ -31,9 +32,13 @@ int tui_isdirty(struct tui_widget *w);
 void tui_draw(struct tui_widget *w);
 
 void tui_set_callback(struct tui_widget *w, int type, tui_callback func, void *cls);
+void tui_call_callback(struct tui_widget *w, int type);
 
 int tui_set_title(struct tui_widget *w, const char *s);
 const char *tui_get_title(struct tui_widget *w);
+
+void tui_focus(struct tui_widget *w, int focus);
+int tui_hasfocus(struct tui_widget *w);
 
 struct tui_widget *tui_window(const char *title, int x, int y, int w, int h);
 struct tui_widget *tui_button(const char *title, int x, int y, tui_callback cbfunc, void *cbdata);
