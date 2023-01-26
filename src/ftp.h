@@ -76,7 +76,7 @@ int ftp_sockets(struct ftp *ftp, int *sockv, int maxsize);
 int ftp_handle(struct ftp *ftp, int s);
 
 int ftp_queue(struct ftp *ftp, int op, const char *arg);
-int ftp_waitresp(struct ftp *ftp, time_t timeout);
+int ftp_waitresp(struct ftp *ftp, long timeout);
 
 int ftp_update(struct ftp *ftp);
 int ftp_pwd(struct ftp *ftp);

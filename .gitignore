@@ -7,3 +7,5 @@ oftp
 *.lnk
 *.map
 *.log
+*.lib
+*.a

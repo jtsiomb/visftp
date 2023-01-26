@@ -3,7 +3,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <assert.h>
-#ifdef __MSDOS__
+#ifdef __DOS__
 #include <direct.h>
 #else
 #include <unistd.h>
@@ -17,6 +17,10 @@
 #include "tui.h"
 #include "ftp.h"
 #include "darray.h"
+
+#ifdef __DOS__
+#define select	select_s
+#endif
 
 void updateui(void);
 int update_localdir(void);
@@ -103,6 +107,10 @@ int main(int argc, char **argv)
 			if(proc_input() == -1) {
 				break;
 			}
+		}
+#else
+		if(proc_input() == -1) {
+			break;
 		}
 #endif
 

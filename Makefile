@@ -2,11 +2,11 @@ obj = main.obj tgfx.obj tui.obj tui_list.obj darray.obj util.obj input.obj ftp.o
 bin = oftp.exe
 
 !ifdef __UNIX__
-incpath = -Isrc -Isrc/dos -I$(WATT_ROOT)/inc
-libs = library $(WATT_ROOT)/lib/wattcpwf.lib
+incpath = -Isrc -Isrc/dos -Ilibs/watt32
+libs = library libs/watt32/wattcpwf.lib
 !else
-incpath = -Isrc -Isrc\dos -I$(%WATT_ROOT)\inc
-libs = library $(%WATT_ROOT)\lib\wattcpwf.lib
+incpath = -Isrc -Isrc\dos -Ilibs\watt32
+libs = library libs\watt32\wattcpwf.lib
 !endif
 
 #opt = -otexan

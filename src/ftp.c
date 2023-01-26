@@ -6,6 +6,8 @@
 #include <ctype.h>
 #include <time.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/swap.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -18,6 +20,16 @@
 #include <fcntl.h>
 #define closesocket		close
 #define fcntlsocket		fcntl
+#else
+#define select	select_s
+
+#ifndef O_NONBLOCK
+#define O_NONBLOCK	0x2000
+#endif
+#ifndef F_SETFL
+#define F_GETFL	101
+#define F_SETFL	102
+#endif
 #endif
 
 #define TIMEOUT	15
@@ -236,7 +248,7 @@ int ftp_queue(struct ftp *ftp, int op, const char *arg)
 	return 0;
 }
 
-int ftp_waitresp(struct ftp *ftp, time_t timeout)
+int ftp_waitresp(struct ftp *ftp, long timeout)
 {
 	fd_set rdset;
 	struct timeval tv;
@@ -280,7 +292,7 @@ int ftp_waitresp(struct ftp *ftp, time_t timeout)
 static int ftp_active(struct ftp *ftp)
 {
 	struct sockaddr_in sa = {0};
-	socklen_t len;
+	int len;
 	unsigned long addr;
 	unsigned short port;
 
@@ -692,8 +704,8 @@ static int cproc_pasv(struct ftp *ftp, int code, const char *buf, void *cls)
 		goto nopasv;
 	}
 	port = (addr[4] << 8) | addr[5];
-	ipaddr = ((uint32_t)addr[0] << 24) | ((uint32_t)addr[1] << 16) |
-		((uint32_t)addr[2] << 8) | addr[3];
+	ipaddr = ((unsigned int)addr[0] << 24) | ((unsigned int)addr[1] << 16) |
+		((unsigned int)addr[2] << 8) | addr[3];
 
 	if((ftp->data = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
 		fprintf(stderr, "ftp_passive: failed to allocate socket\n");
@@ -709,7 +721,7 @@ static int cproc_pasv(struct ftp *ftp, int code, const char *buf, void *cls)
 
 	if(connect(ftp->data, (struct sockaddr*)&sa, sizeof sa) == -1) {
 		errmsg("ftp_passive: failed to connect to %s:%p\n", inet_ntoa(sa.sin_addr), port);
-		close(ftp->data);
+		closesocket(ftp->data);
 		ftp->data = -1;
 		goto nopasv;
 	}

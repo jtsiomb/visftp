@@ -11,6 +11,18 @@ static unsigned short *framebuf = (unsigned short*)0xb8000;
 
 #define UPD_ATTR	attr = (fgcol << 8) | (bgcol << 12)
 
+void tg_init(void)
+{
+}
+
+void tg_cleanup(void)
+{
+}
+
+void tg_redraw(void)
+{
+}
+
 void tg_clear(void)
 {
 	tg_rect(0, 0, 0, 80, 25, 0);
