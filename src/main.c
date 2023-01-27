@@ -73,10 +73,14 @@ int main(int argc, char **argv)
 	tg_bgchar(' ');
 	tg_clear();
 
-	uilist[0] = tui_list("Remote", 0, 0, 40, 23, 0, 0);
-	uilist[1] = tui_list("Local", 40, 0, 40, 23, 0, 0);
+	uilist[0] = tui_list("Remote", 0, 1, 40, 21, 0, 0);
+	uilist[1] = tui_list("Local", 40, 1, 40, 21, 0, 0);
 	focus = 0;
 	tui_focus(uilist[focus], 1);
+
+	tg_fgcolor(TGFX_RED);
+	tg_bgcolor(TGFX_BLACK);
+	tg_rect("No conn.", 0, 0, 80, 1, 0);
 
 	tg_setcursor(0, 23);
 
@@ -140,6 +144,12 @@ void updateui(void)
 	unsigned int upd = 0;
 	char buf[128];
 	const char *remdir;
+
+	if(ftp->status != FTP_DISC) {
+		tg_fgcolor(TGFX_GREEN);
+		tg_bgcolor(TGFX_BLACK);
+		tg_text(0, 0, "Conn: %s", host);
+	}
 
 	remdir = ftp_curdir(ftp);
 	if(remdir && strcmp(tui_get_title(uilist[0]), remdir) != 0) {
