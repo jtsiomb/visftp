@@ -3,7 +3,7 @@ obj = $(src:.c=.o)
 dep = $(src:.c=.d)
 bin = oftp
 
-warn = -pedantic -Wall
+warn = -pedantic -Wall -Wno-pointer-sign
 dbg = -g
 incdir = -Isrc
 

@@ -50,6 +50,9 @@ static int cproc_cwd(struct ftp *ftp, int code, const char *buf, void *cls);
 static int cproc_list(struct ftp *ftp, int code, const char *buf, void *cls);
 static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls);
 
+static int cproc_xfer(struct ftp *ftp, int code, const char *buf, void *cls);
+static void dproc_xfer(struct ftp *ftp, const char *buf, int sz, void *cls);
+
 
 struct ftp *ftp_alloc(void)
 {
@@ -151,15 +154,19 @@ int ftp_sockets(struct ftp *ftp, int *sockv, int maxsize)
 	return sptr - sockv;
 }
 
-static void exec_op(struct ftp *ftp, int op, const char *arg)
+static void exec_op(struct ftp *ftp, struct ftp_op *fop)
 {
-	switch(op) {
+	switch(fop->op) {
+	case FTP_TYPE:
+		ftp_type(ftp, fop->arg);
+		break;
+
 	case FTP_PWD:
 		ftp_pwd(ftp);
 		break;
 
 	case FTP_CHDIR:
-		ftp_chdir(ftp, arg);
+		ftp_chdir(ftp, fop->arg);
 		break;
 
 	case FTP_CDUP:
@@ -167,15 +174,15 @@ static void exec_op(struct ftp *ftp, int op, const char *arg)
 		break;
 
 	case FTP_MKDIR:
-		ftp_mkdir(ftp, arg);
+		ftp_mkdir(ftp, fop->arg);
 		break;
 
 	case FTP_RMDIR:
-		ftp_rmdir(ftp, arg);
+		ftp_rmdir(ftp, fop->arg);
 		break;
 
 	case FTP_DEL:
-		ftp_delete(ftp, arg);
+		ftp_delete(ftp, fop->arg);
 		break;
 
 	case FTP_LIST:
@@ -183,11 +190,15 @@ static void exec_op(struct ftp *ftp, int op, const char *arg)
 		break;
 
 	case FTP_RETR:
-		ftp_retrieve(ftp, arg);
+		ftp_retrieve(ftp, fop->arg);
 		break;
 
 	case FTP_STORE:
-		ftp_store(ftp, arg);
+		ftp_store(ftp, fop->arg);
+		break;
+
+	case FTP_XFER:
+		ftp_transfer(ftp, fop->data);
 		break;
 
 	default:
@@ -209,7 +220,7 @@ static void exec_queued(struct ftp *ftp)
 		ftp->qhead = ftp->qhead->next;
 	}
 
-	exec_op(ftp, fop->op, fop->arg);
+	exec_op(ftp, fop);
 
 	free(fop->arg);
 	free(fop);
@@ -221,7 +232,10 @@ int ftp_queue(struct ftp *ftp, int op, const char *arg)
 	struct ftp_op *fop;
 
 	if(!ftp->busy && !ftp->qhead) {
-		exec_op(ftp, op, arg);
+		struct ftp_op tmp = {0};
+		tmp.op = op;
+		tmp.arg = (char*)arg;
+		exec_op(ftp, &tmp);
 		return 0;
 	}
 
@@ -237,6 +251,35 @@ int ftp_queue(struct ftp *ftp, int op, const char *arg)
 		fop->arg = 0;
 	}
 	fop->op = op;
+	fop->next = 0;
+
+	if(ftp->qhead) {
+		ftp->qtail->next = fop;
+		ftp->qtail = fop;
+	} else {
+		ftp->qhead = ftp->qtail = fop;
+	}
+	return 0;
+}
+
+int ftp_queue_transfer(struct ftp *ftp, struct ftp_transfer *xfer)
+{
+	struct ftp_op *fop;
+
+	if(!ftp->busy && !ftp->qhead) {
+		struct ftp_op tmp = {0};
+		tmp.op = FTP_XFER;
+		tmp.data = xfer;
+		exec_op(ftp, &tmp);
+		return 0;
+	}
+
+	if(!(fop = malloc(sizeof *fop))) {
+		return -1;
+	}
+	fop->op = FTP_XFER;
+	fop->arg = 0;
+	fop->data = xfer;
 	fop->next = 0;
 
 	if(ftp->qhead) {
@@ -538,11 +581,18 @@ static void proc_control(struct ftp *ftp, const char *buf)
 		ftp->status = 0;
 		errmsg("login failed\n");
 		break;
+
+	default:
+		ftp->busy = 0;
+
+		/* execute next operation if there's one queued */
+		exec_queued(ftp);
 	}
 }
 
 static int newconn(struct ftp *ftp)
 {
+	ftp_queue(ftp, FTP_TYPE, "I");
 	ftp_queue(ftp, FTP_PWD, 0);
 	ftp_queue(ftp, FTP_LIST, 0);
 	return 0;
@@ -551,6 +601,16 @@ static int newconn(struct ftp *ftp)
 int ftp_update(struct ftp *ftp)
 {
 	return -1;
+}
+
+int ftp_type(struct ftp *ftp, const char *type)
+{
+	int tc = toupper(type[0]);
+	if(tc != 'I' && tc != 'A') {
+		return -1;
+	}
+	sendcmd(ftp, "type %c", tc);
+	return 0;
 }
 
 int ftp_pwd(struct ftp *ftp)
@@ -615,7 +675,7 @@ int ftp_list(struct ftp *ftp)
 {
 	struct recvbuf *rbuf;
 
-	if(prepare_data(ftp)) {
+	if(prepare_data(ftp) == -1) {
 		return -1;
 	}
 
@@ -646,6 +706,25 @@ int ftp_retrieve(struct ftp *ftp, const char *fname)
 int ftp_store(struct ftp *ftp, const char *fname)
 {
 	return -1;
+}
+
+#define XFER_BUF_SIZE	1024
+
+int ftp_transfer(struct ftp *ftp, struct ftp_transfer *xfer)
+{
+	if(prepare_data(ftp) == -1) {
+		return -1;
+	}
+
+	if(xfer->op == FTP_RETR) {
+		sendcmd(ftp, "retr %s", xfer->rname);
+		ftp->cproc = cproc_xfer;
+		ftp->dproc = dproc_xfer;
+		ftp->cproc_cls = ftp->dproc_cls = xfer;
+	} else {
+		/* TODO */
+	}
+	return 0;
 }
 
 static int get_quoted_text(const char *str, char *buf)
@@ -881,6 +960,64 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 
 	memcpy(rbuf->buf + rbuf->size, buf, sz);
 	rbuf->size += sz;
+}
+
+static int cproc_xfer(struct ftp *ftp, int code, const char *buf, void *cls)
+{
+	char *ptr;
+	struct ftp_transfer *xfer = cls;
+
+	if(code < 200) {
+		/* expect more */
+		if(code == 150 && (ptr = strchr(buf, '('))) {
+			/* update total size */
+			sscanf(ptr, "(%ld bytes)", &xfer->total);
+		}
+		return 1;
+	}
+
+	if(code >= 400) {
+		errmsg("failed to retrieve file\n");
+	}
+	return 0;
+}
+
+static void dproc_xfer(struct ftp *ftp, const char *buf, int sz, void *cls)
+{
+	struct ftp_transfer *xfer = cls;
+
+	if(xfer->op == FTP_RETR) {
+		if(sz == 0) {
+			/* EOF condition, got the whole file */
+			if(xfer->fp) {
+				fclose(xfer->fp);
+				xfer->fp = 0;
+			}
+
+			if(xfer->done) {
+				xfer->done(ftp, xfer);
+			}
+			return;
+		}
+
+		if(xfer->fp) {
+			((char*)buf)[sz] = 0;
+			fwrite(buf, 1, sz, xfer->fp);
+
+		} else if(xfer->mem) {
+			int prevsz = darr_size(xfer->mem);
+			darr_resize(xfer->mem, prevsz + sz);
+			memcpy(xfer->mem + prevsz, buf, sz);
+		}
+
+		xfer->count += sz;
+		if(xfer->count > xfer->total) {
+			xfer->count = xfer->total;
+		}
+
+	} else { /* FTP_STOR */
+		/* TODO */
+	}
 }
 
 const char *ftp_curdir(struct ftp *ftp)

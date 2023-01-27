@@ -26,6 +26,8 @@ void updateui(void);
 int update_localdir(void);
 int proc_input(void);
 int keypress(int key);
+static void fixname(char *dest, const char *src);
+static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer);
 int parse_args(int argc, char **argv);
 
 static struct ftp *ftp;
@@ -38,6 +40,7 @@ static int port = 21;
 
 static char curdir[PATH_MAX + 1];
 static struct ftp_dirent *localdir;
+static int local_modified;
 
 
 int main(int argc, char **argv)
@@ -164,7 +167,7 @@ void updateui(void)
 		upd |= 1;
 	}
 
-	if(strcmp(tui_get_title(uilist[1]), curdir) != 0) {
+	if(local_modified || strcmp(tui_get_title(uilist[1]), curdir) != 0) {
 		tui_clear_list(uilist[1]);
 		num = darr_size(localdir);
 		for(i=0; i<num; i++) {
@@ -178,6 +181,8 @@ void updateui(void)
 		}
 		tui_list_select(uilist[1], 0);
 		tui_set_title(uilist[1], curdir);
+
+		local_modified = 0;
 		upd |= 2;
 	}
 
@@ -223,6 +228,7 @@ int update_localdir(void)
 	closedir(dir);
 
 	qsort(localdir, darr_size(localdir), sizeof *localdir, ftp_direntcmp);
+	local_modified = 1;
 	return 0;
 }
 
@@ -308,10 +314,73 @@ int keypress(int key)
 		}
 		break;
 
+	case KB_F5:
+		sel = tui_get_list_sel(uilist[focus]);
+		if(focus == 0) {
+			struct ftp_transfer *xfer;
+			struct ftp_dirent *ent = ftp_dirent(ftp, sel);
+			char *lname = alloca(strlen(ent->name) + 1);
+
+			fixname(lname, ent->name);
+
+			xfer = malloc_nf(sizeof *xfer);
+			if(!(xfer->fp = fopen(lname, "wb"))) {
+				errmsg("failed to open %s: %s\n", lname, strerror(errno));
+				free(xfer);
+				break;
+			}
+
+			xfer->op = FTP_RETR;
+			xfer->rname = strdup_nf(ent->name);
+			xfer->total = ent->size;
+			xfer->done = xfer_done;
+
+			ftp_queue_transfer(ftp, xfer);
+			local_modified = 1;
+		} else {
+			/* TODO */
+		}
+		break;
+
 	default:
 		break;
 	}
 	return 0;
+}
+
+static void fixname(char *dest, const char *src)
+{
+	strcpy(dest, src);
+
+#ifdef __DOS__
+	{
+		char *suffix;
+		if((suffix = strrchr(dest, '.'))) {
+			*suffix++ = 0;
+			if(strlen(suffix) > 3) {
+				suffix[3] = 0;
+			}
+		}
+		if(strlen(dest) > 8) {
+			dest[8] = 0;
+		}
+
+		if(suffix) {
+			strcat(dest, ".");
+			strcat(dest, suffix);
+		}
+	}
+#endif
+}
+
+static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer)
+{
+	if(xfer->fp) {
+		fclose(xfer->fp);
+	}
+	free(xfer->rname);
+	free(xfer);
+	update_localdir();
 }
 
 static const char *usage = "Usage: %s [options] [hostname] [port]\n"
