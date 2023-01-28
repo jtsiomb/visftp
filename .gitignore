@@ -1,7 +1,7 @@
 *.o
 *.swp
 *.d
-oftp
+visftp
 *.exe
 *.obj
 *.lnk

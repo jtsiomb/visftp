@@ -1,7 +1,7 @@
 src = $(wildcard src/*.c) $(wildcard src/unix/*.c)
 obj = $(src:.c=.o)
 dep = $(src:.c=.d)
-bin = oftp
+bin = visftp
 
 warn = -pedantic -Wall -Wno-pointer-sign
 dbg = -g

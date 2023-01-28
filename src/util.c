@@ -64,7 +64,7 @@ static void closelog(void)
 static void logmsg(const char *tag, const char *fmt, va_list ap)
 {
 	if(!logfile) {
-		if(!(logfile = fopen("oftp.log", "w"))) {
+		if(!(logfile = fopen("visftp.log", "w"))) {
 			return;
 		}
 		setvbuf(logfile, 0, _IOLBF, 0);

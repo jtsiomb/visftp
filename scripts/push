@@ -1,6 +1,6 @@
 #!/bin/sh
 
-fname=/etherdfs/oftp.zip
+fname=/etherdfs/visftp.zip
 
 #git archive -o $fname HEAD
 rm -f $fname

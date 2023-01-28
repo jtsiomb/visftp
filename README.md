@@ -1,16 +1,17 @@
-oftp - ftp client with dual-pane text-mode UI
-=============================================
+visftp - visual ftp client with dual-pane text-mode UI
+======================================================
 
-oftp is a text-mode graphical ftp client, with a dual-pane UI , also known as
-the "orthodox" file management UI paradigm. The dual-pane UI design is a perfect
-fit for an FTP client, where the user is required to navigate two filesystems
-simultaneously; one pane is dedicated to the remote filesystem served over ftp,
-while the other is for navigating the local filesystem.
+visftp is a text-mode graphical ftp client, with a dual-pane UI , also known as
+the "orthodox" file management UI paradigm. The dual-pane UI design is a
+perfect fit for an FTP client, where the user is required to navigate two
+filesystems simultaneously; one pane is dedicated to the remote filesystem
+served over ftp, while the other is for navigating the local filesystem.
 
-oftp was written to address the lack of graphical FTP clients for DOS (MS-DOS,
-FreeDOS, etc), but will also run on UNIX systems using curses for its UI.
+visftp was written to address the lack of graphical FTP clients for DOS
+(MS-DOS, FreeDOS, etc), but will also run on UNIX systems using curses for its
+UI.
 
-**Release status**: *Prototype*. oftp mostly works, but it's very rough, and you
+**Release status**: *Prototype*. visftp mostly works, but it's very rough, and you
 will find lots of bugs. Feel free to open bug reports, but keep in mind that the
 most obvious issues will be solved as a matter of course as this project
 progresses.

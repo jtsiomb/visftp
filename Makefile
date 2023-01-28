@@ -1,5 +1,5 @@
 obj = main.obj tgfx.obj tui.obj tui_list.obj darray.obj util.obj input.obj ftp.obj
-bin = oftp.exe
+bin = visftp.exe
 
 !ifdef __UNIX__
 incpath = -Isrc -Isrc/dos -Ilibs/watt32
@@ -35,12 +35,12 @@ $(bin): $(obj)
 clean: .symbolic
 	rm -f *.obj
 	rm -f objects.lnk
-	rm -f oftp.map
+	rm -f visftp.map
 	rm -f $(bin)
 !else
 clean: .symbolic
 	del *.obj
 	del objects.lnk
-	del oftp.map
+	del visftp.map
 	del $(bin)
 !endif

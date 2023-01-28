@@ -1,2 +1,2 @@
-del oftp.zip
-zip z:\oftp.zip Makefile src\*.c src\*.h scripts\*.bat
+del visftp.zip
+zip z:\visftp.zip Makefile src\*.c src\*.h scripts\*.bat
