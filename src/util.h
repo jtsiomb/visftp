@@ -16,6 +16,13 @@
 #define strcasecmp(s, k) stricmp(s, k)
 #endif
 
+#ifdef __WATCOMC__
+#if __WATCOMC__ < 1200
+#define snprintf _snprintf
+#define vsnprintf _vsnprintf
+#endif
+#endif
+
 #define malloc_nf(sz)	malloc_nf_impl(sz, __FILE__, __LINE__)
 void *malloc_nf_impl(size_t sz, const char *file, int line);
 

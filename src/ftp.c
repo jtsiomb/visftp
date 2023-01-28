@@ -433,7 +433,7 @@ static int sendcmd(struct ftp *ftp, const char *fmt, ...)
 	ftp->busy = 1;
 
 	va_start(ap, fmt);
-	vsprintf(buf, fmt, ap);
+	vsnprintf(buf, sizeof buf, fmt, ap);
 	va_end(ap);
 	infomsg("send: %s\n", buf);
 	strcat(buf, "\r\n");

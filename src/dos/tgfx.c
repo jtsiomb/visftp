@@ -89,7 +89,7 @@ void tg_vtext(int x, int y, const char *fmt, va_list ap)
 
 void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int flags)
 {
-	int i, j;
+	int i, j, len, maxlen;
 	unsigned short *fbptr = framebuf + y * 80 + x;
 
 	for(i=0; i<ysz; i++) {
@@ -99,7 +99,7 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 		fbptr += 80;
 	}
 
-	if(flags & TGFX_FRAME) {
+	if((flags & TGFX_FRAME) && xsz >= 2 && ysz >= 2) {
 		fbptr = framebuf + y * 80 + x;
 		for(i=0; i<xsz-2; i++) {
 			fbptr[i + 1] = attr | 0xcd;
@@ -116,7 +116,11 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 		fbptr[xsz-1] = attr | 0xbc;
 	}
 
-	if(label) {
+	if(label && xsz >= 8) {
+		maxlen = xsz - 4;
+		if((len = strlen(label)) > maxlen) {
+			label += len - maxlen;
+		}
 		tg_text(x + 2, y, "%s", label);
 	}
 }

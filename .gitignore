@@ -9,3 +9,9 @@ visftp
 *.log
 *.lib
 *.a
+*.OBJ
+*.EXE
+*.LNK
+*.MAP
+*.LOG
+*.SWP

@@ -1,3 +1,4 @@
+#include <string.h>
 #include <curses.h>
 #include "tgfx.h"
 #include "util.h"
@@ -103,7 +104,7 @@ void tg_vtext(int x, int y, const char *fmt, va_list ap)
 
 void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int flags)
 {
-	int i;
+	int i, len, maxlen;
 
 	upd_color();
 	attron(COLOR_PAIR(cur_pair));
@@ -113,7 +114,7 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 		hline(bgchar, xsz);
 	}
 
-	if(flags & TGFX_FRAME) {
+	if((flags & TGFX_FRAME) && xsz >= 2 && ysz >= 2) {
 		move(y, x + 1);
 		hline(ACS_HLINE, xsz - 2);
 		move(y + ysz - 1, x + 1);
@@ -129,7 +130,11 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 		mvaddch(y + ysz - 1, x + xsz - 1, ACS_LRCORNER);
 	}
 
-	if(label) {
+	if(label && xsz >= 8) {
+		maxlen = xsz - 4;
+		if((len = strlen(label)) > maxlen) {
+			label += len - maxlen;
+		}
 		tg_text(x + 2, y, "%s", label);
 	}
 

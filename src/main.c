@@ -512,7 +512,12 @@ void detect_lfn(void)
 {
 	union REGS regs = {0};
 	struct SREGS sregs = {0};
-	unsigned int drv, buf_seg;
+	unsigned int drv;
+#if __WATCOMC__ < 1200
+	unsigned short buf_seg;
+#else
+	unsigned int buf_seg;
+#endif
 	char *buf;
 
 	_dos_getdrive(&drv);

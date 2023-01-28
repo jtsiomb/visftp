@@ -211,8 +211,12 @@ void tui_sort_list(struct tui_widget *w, int (*cmpfunc)(const void*, const void*
 
 static void draw_list(struct tui_widget *w, void *cls)
 {
-	int i, x, y, num, idx;
+	int i, x, y, num, idx, maxlen;
 	struct tui_list *wl = (struct tui_list*)w;
+	char *text;
+
+	maxlen = w->width - 2;
+	text = alloca(maxlen + 1);
 
 	tui_wtoscr(w, 0, 0, &x, &y);
 
@@ -228,17 +232,21 @@ static void draw_list(struct tui_widget *w, void *cls)
 	x++;
 	for(i=0; i<num; i++) {
 		idx = i + wl->view_offs;
+
+		strncpy(text, wl->entries[idx], maxlen);
+		text[maxlen] = 0;
+
 		if(w->focus && idx == wl->sel) {
 			tg_bgcolor(TGFX_CYAN);
 			tg_fgcolor(TGFX_BLUE);
 
-			tg_rect(0, x, ++y, wl->width-2, 1, 0);
-			tg_text(x, y, "%s", wl->entries[idx]);
+			tg_rect(0, x, ++y, maxlen, 1, 0);
+			tg_text(x, y, "%s", text);
 
 			tg_bgcolor(TGFX_BLUE);
 			tg_fgcolor(TGFX_CYAN);
 		} else {
-			tg_text(x, ++y, "%s", wl->entries[idx]);
+			tg_text(x, ++y, "%s", text);
 		}
 	}
 }
