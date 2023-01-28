@@ -120,3 +120,16 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 		tg_text(x + 2, y, "%s", label);
 	}
 }
+
+int tg_gchar(int gchar)
+{
+	switch(gchar) {
+	case TGFX_LARROW:
+		return 0x1b;
+	case TGFX_RARROW:
+		return 0x1a;
+	default:
+		break;
+	}
+	return '@';
+}

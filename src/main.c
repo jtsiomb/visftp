@@ -41,6 +41,13 @@ static int port = 21;
 static char curdir[PATH_MAX + 1];
 static struct ftp_dirent *localdir;
 static int local_modified;
+static struct ftp_transfer *cur_xfer;
+
+#ifdef __DOS__
+void detect_lfn(void);
+
+static int have_lfn;
+#endif
 
 
 int main(int argc, char **argv)
@@ -49,6 +56,10 @@ int main(int argc, char **argv)
 	int ftpsock[16];
 	fd_set rdset;
 	struct timeval tv;
+
+#ifdef __DOS__
+	detect_lfn();
+#endif
 
 	if(parse_args(argc, argv) == -1) {
 		return 1;
@@ -78,14 +89,9 @@ int main(int argc, char **argv)
 	focus = 0;
 	tui_focus(uilist[focus], 1);
 
-	tg_fgcolor(TGFX_RED);
-	tg_bgcolor(TGFX_BLACK);
-	tg_rect("No conn.", 0, 0, 80, 1, 0);
+	local_modified = 1;
 
 	tg_setcursor(0, 23);
-
-	tui_draw(uilist[0]);
-	tui_draw(uilist[1]);
 
 	for(;;) {
 		FD_ZERO(&rdset);
@@ -139,17 +145,41 @@ int main(int argc, char **argv)
 
 void updateui(void)
 {
-	int i, num;
+	int i, num, progr;
 	struct ftp_dirent *ent;
 	unsigned int upd = 0;
 	char buf[128];
 	const char *remdir;
+	static int prev_status;
+	static void *prev_xfer;
 
-	if(ftp->status != FTP_DISC) {
-		tg_fgcolor(TGFX_GREEN);
+	if(ftp->status != prev_status) {
+		tg_fgcolor(ftp->status ? TGFX_GREEN : TGFX_RED);
 		tg_bgcolor(TGFX_BLACK);
-		tg_text(0, 0, "Conn: %s", host);
+		tg_text(0, 0, "Srv: %s", ftp->status ? host : "-");
+		upd |= 0x8000;
+		prev_status = ftp->status;
 	}
+
+	tg_fgcolor(TGFX_WHITE);
+	tg_bgcolor(TGFX_BLACK);
+	if(cur_xfer) {
+		int dir = tg_gchar(cur_xfer->op == FTP_RETR ? TGFX_RARROW : TGFX_LARROW);
+		tg_text(40, 0, "%c%s", dir, cur_xfer->rname);
+		if(!cur_xfer->total) {
+			tg_text(75, 0, " ???%%");
+		} else {
+			progr = 100 * cur_xfer->count / cur_xfer->total;
+			if(progr < 0) progr = 0;
+			if(progr > 100) progr = 100;
+			tg_text(75, 0, " %3d%%", progr);
+		}
+		upd |= 0x8000;
+	} else if(prev_xfer) {
+		tg_rect(0, 40, 0, 40, 1, 0);
+		upd |= 0x8000;
+	}
+	prev_xfer = cur_xfer;
 
 	remdir = ftp_curdir(ftp);
 	if(remdir && strcmp(tui_get_title(uilist[0]), remdir) != 0) {
@@ -201,6 +231,10 @@ void updateui(void)
 	}
 	if(tui_isdirty(uilist[1]) || upd & 2) {
 		tui_draw(uilist[1]);
+	}
+
+	if(upd) {
+		tg_redraw();
 	}
 }
 
@@ -270,6 +304,11 @@ int keypress(int key)
 	case 'q':
 	case KB_F10:
 		return -1;
+
+	case '`':
+		tui_invalidate(uilist[0]);
+		tui_invalidate(uilist[1]);
+		break;
 
 	case '\t':
 		tui_focus(uilist[focus], 0);
@@ -343,7 +382,10 @@ int keypress(int key)
 			xfer->op = FTP_RETR;
 			xfer->rname = strdup_nf(ent->name);
 			xfer->total = ent->size;
+			xfer->count = 0;
 			xfer->done = xfer_done;
+
+			cur_xfer = xfer;
 
 			ftp_queue_transfer(ftp, xfer);
 			local_modified = 1;
@@ -351,6 +393,21 @@ int keypress(int key)
 			/* TODO */
 		}
 		break;
+
+	case KB_F8:
+		sel = tui_get_list_sel(uilist[focus]);
+		if(focus == 0) {
+		} else {
+			struct ftp_dirent *ent = localdir + sel;
+			if(ent->type == FTP_FILE) {
+				infomsg("removing local file: %s\n", ent->name);
+				remove(ent->name);
+				update_localdir();
+				local_modified = 1;
+			}
+		}
+		break;
+
 
 	default:
 		break;
@@ -363,7 +420,8 @@ static void fixname(char *dest, const char *src)
 	strcpy(dest, src);
 
 #ifdef __DOS__
-	{
+	if(!have_lfn) {
+		int len;
 		char *suffix;
 		if((suffix = strrchr(dest, '.'))) {
 			*suffix++ = 0;
@@ -371,13 +429,16 @@ static void fixname(char *dest, const char *src)
 				suffix[3] = 0;
 			}
 		}
-		if(strlen(dest) > 8) {
+		if((len = strlen(dest)) > 8) {
 			dest[8] = 0;
+			len = 8;
 		}
 
 		if(suffix) {
-			strcat(dest, ".");
-			strcat(dest, suffix);
+			dest[len++] = '.';
+			if(dest + len != suffix) {
+				memmove(dest + len, suffix, strlen(suffix) + 1);
+			}
 		}
 	}
 #endif
@@ -391,6 +452,8 @@ static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer)
 	free(xfer->rname);
 	free(xfer);
 	update_localdir();
+
+	cur_xfer = 0;
 }
 
 static const char *usage = "Usage: %s [options] [hostname] [port]\n"
@@ -440,3 +503,46 @@ inval:
 	fprintf(stderr, usage, argv[0]);
 	return -1;
 }
+
+#ifdef __DOS__
+#include <dos.h>
+#include <i86.h>
+
+void detect_lfn(void)
+{
+	union REGS regs = {0};
+	struct SREGS sregs = {0};
+	unsigned int drv, buf_seg;
+	char *buf;
+
+	_dos_getdrive(&drv);
+
+	if(_dos_allocmem(3, &buf_seg) != 0) {
+		return;
+	}
+#ifdef _M_I86
+#error TODO port to 16bit
+#else
+	buf = (char*)(buf_seg << 4);
+#endif
+
+	sprintf(buf, "%c:\\", 'A' + drv);
+
+	sregs.ds = sregs.es = buf_seg;
+	regs.w.ax = 0x71a0;
+	regs.w.dx = 0;		/* ds:dx drive letter string */
+	regs.w.di = 4;		/* es:di buffer for filesystem name */
+	regs.w.cx = 44;		/* buffer size (3*16 - 4) */
+
+	intdosx(&regs, &regs, &sregs);
+
+	if(regs.w.cflag == 0) {
+		infomsg("long filenames available\n");
+		have_lfn = 1;
+	} else {
+		infomsg("long filenames not available, will truncate as needed\n");
+	}
+
+	_dos_freemem(buf_seg);
+}
+#endif

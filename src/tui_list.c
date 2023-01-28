@@ -79,15 +79,19 @@ int tui_num_list_items(struct tui_widget *w)
 	return darr_size(wl->entries);
 }
 
+#define VISLINES(wl)	((wl)->height - 2)
+
 int tui_list_select(struct tui_widget *w, int idx)
 {
-	int offs, nelem;
+	int offs, nelem, numvis;
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
 
 	if(idx == wl->sel) {
 		return 0;	/* no change */
 	}
+
+	numvis = VISLINES(wl);
 
 	if(idx < 0) {
 		wl->sel = -1;
@@ -98,10 +102,10 @@ int tui_list_select(struct tui_widget *w, int idx)
 	}
 	wl->sel = idx;
 
-	if(idx < wl->view_offs || idx >= wl->view_offs + wl->height) {
-		offs = idx - wl->height / 2;
-		if(offs + wl->height >= nelem) {
-			offs = nelem - wl->height;
+	if(idx < wl->view_offs || idx >= wl->view_offs + numvis) {
+		offs = idx - numvis / 2;
+		if(offs + numvis >= nelem) {
+			offs = nelem - numvis;
 		}
 		if(offs < 0) {
 			offs = 0;
@@ -123,18 +127,20 @@ int tui_get_list_sel(struct tui_widget *w)
 
 int tui_list_sel_next(struct tui_widget *w)
 {
-	int nelem;
+	int nelem, numvis;
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
 
 	nelem = darr_size(wl->entries);
 
+	numvis = VISLINES(wl);
+
 	if(wl->sel + 1 >= nelem) {
 		return -1;
 	}
 
-	if(++wl->sel - wl->view_offs >= wl->height) {
-		wl->view_offs = wl->sel - wl->height;
+	if(++wl->sel - wl->view_offs >= numvis) {
+		wl->view_offs = wl->sel - numvis + 1;
 	}
 	wl->dirty = 1;
 	tui_call_callback(w, TUI_ONMODIFY);
@@ -171,14 +177,15 @@ int tui_list_sel_start(struct tui_widget *w)
 
 int tui_list_sel_end(struct tui_widget *w)
 {
-	int nelem;
+	int nelem, numvis;
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
 
 	nelem = darr_size(wl->entries);
+	numvis = VISLINES(wl);
 
 	wl->sel = nelem - 1;
-	wl->view_offs = nelem - wl->height;
+	wl->view_offs = nelem - numvis;
 	if(wl->view_offs < 0) wl->view_offs = 0;
 	wl->dirty = 1;
 	tui_call_callback(w, TUI_ONMODIFY);

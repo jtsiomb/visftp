@@ -31,8 +31,16 @@ $(bin): $(obj)
 .asm.obj:
 	nasm -f obj -o $@ $[*.asm
 
+!ifdef __UNIX__
+clean: .symbolic
+	rm -f *.obj
+	rm -f objects.lnk
+	rm -f oftp.map
+	rm -f $(bin)
+!else
 clean: .symbolic
 	del *.obj
 	del objects.lnk
 	del oftp.map
 	del $(bin)
+!endif

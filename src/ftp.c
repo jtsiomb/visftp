@@ -486,13 +486,16 @@ static int handle_control(struct ftp *ftp)
 
 static int handle_data(struct ftp *ftp, int s)
 {
-	int rd;
+	int i, rd;
 
 	if(ftp->data == -1) {
 		return -1;
 	}
 
-	for(;;) {
+	/* get at most 4 packets at a time, to allow returning back to the main loop
+	 * to process input
+	 */
+	for(i=0; i<4; i++) {
 		if((rd = recv(ftp->data, ftp->drecv, sizeof ftp->drecv, 0)) == -1) {
 			if(errno == EINTR) continue;
 			/* assume EWOULDBLOCK, try again next time */

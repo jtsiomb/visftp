@@ -28,6 +28,7 @@ void tui_add_widget(struct tui_widget *par, struct tui_widget *w);
 void tui_remove_widget(struct tui_widget *par, struct tui_widget *w);
 struct tui_widget *tui_parent(struct tui_widget *w);
 
+void tui_invalidate(struct tui_widget *w);
 int tui_isdirty(struct tui_widget *w);
 void tui_draw(struct tui_widget *w);
 

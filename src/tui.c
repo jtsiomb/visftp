@@ -79,6 +79,11 @@ struct tui_widget *tui_parent(struct tui_widget *w)
 	return w->par;
 }
 
+void tui_invalidate(struct tui_widget *w)
+{
+	w->dirty = 1;
+}
+
 int tui_isdirty(struct tui_widget *w)
 {
 	return w->dirty;
@@ -206,9 +211,6 @@ void tui_status(int type, const char *fmt, ...)
 void tui_vstatus(int type, const char *fmt, va_list ap)
 {
 	/* TODO */
-	tg_color(15);
-	tg_bgcolor(0);
-	tg_vtext(0, 25, fmt, ap);
 }
 
 void tui_msgbox(int type, const char *title, const char *msg, ...)
@@ -222,7 +224,4 @@ void tui_msgbox(int type, const char *title, const char *msg, ...)
 void tui_vmsgbox(int type, const char *title, const char *msg, va_list ap)
 {
 	/* TODO */
-	tg_color(15);
-	tg_bgcolor(0);
-	tg_vtext(0, 25, msg, ap);
 }

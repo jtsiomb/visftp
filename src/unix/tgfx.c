@@ -24,6 +24,7 @@ void tg_init(void)
 	keypad(stdscr, TRUE);
 	nodelay(stdscr, TRUE);
 	noecho();
+	curs_set(0);
 	start_color();
 
 	fgcol = curses_color(TGFX_WHITE);
@@ -133,6 +134,20 @@ void tg_rect(const char *label, int x, int y, int xsz, int ysz, unsigned int fla
 	}
 
 	attroff(COLOR_PAIR(cur_pair));
+	refresh();
+}
+
+int tg_gchar(int gchar)
+{
+	switch(gchar) {
+	case TGFX_LARROW:
+		return ACS_LARROW;
+	case TGFX_RARROW:
+		return ACS_RARROW;
+	default:
+		break;
+	}
+	return '@';
 }
 
 static int curses_color(int col)
