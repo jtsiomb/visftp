@@ -329,6 +329,21 @@ int keypress(int key)
 		tui_list_sel_end(uilist[focus]);
 		break;
 
+	case KB_PGUP:
+		if((sel = tui_get_list_sel(uilist[focus]) - 16) < 0) {
+			tui_list_sel_start(uilist[focus]);
+		} else {
+			tui_list_select(uilist[focus], sel);
+		}
+		break;
+	case KB_PGDN:
+		if((sel = tui_get_list_sel(uilist[focus]) + 16) >= tui_num_list_items(uilist[focus])) {
+			tui_list_sel_end(uilist[focus]);
+		} else {
+			tui_list_select(uilist[focus], sel);
+		}
+		break;
+
 	case '\n':
 		sel = tui_get_list_sel(uilist[focus]);
 		if(focus == 0) {
