@@ -29,6 +29,7 @@ struct server {
 	char *host;
 	char *user;
 	char *pass;
+	char *dir;
 };
 
 

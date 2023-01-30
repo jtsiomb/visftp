@@ -31,17 +31,17 @@ void *darr_finalize(void *da);
 #define darr_strpush(da, c) \
 	do { \
 		char cnull = 0, ch = (char)(c); \
-		(da) = dynarr_pop_impl(da); \
-		(da) = dynarr_push_impl((da), &ch); \
-		(da) = dynarr_push_impl((da), &cnull); \
+		(da) = darr_pop_impl(da); \
+		(da) = darr_push_impl((da), &ch); \
+		(da) = darr_push_impl((da), &cnull); \
 	} while(0)
 
 #define darr_strpop(da) \
 	do { \
 		char cnull = 0; \
-		(da) = dynarr_pop_impl(da); \
-		(da) = dynarr_pop_impl(da); \
-		(da) = dynarr_push_impl((da), &cnull); \
+		(da) = darr_pop_impl(da); \
+		(da) = darr_pop_impl(da); \
+		(da) = darr_push_impl((da), &cnull); \
 	} while(0)
 
 
