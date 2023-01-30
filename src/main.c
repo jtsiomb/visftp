@@ -34,16 +34,19 @@ struct server {
 };
 
 
-void updateui(void);
-int update_localdir(void);
-int proc_input(void);
-int keypress(int key);
+static void updateui(void);
+static int update_localdir(void);
+static int proc_input(void);
+static int keypress(int key);
+static void act_activate(void);
+static void act_transfer(void);
+static void act_view(void);
 static void fixname(char *dest, const char *src);
 static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer);
 static void view_done(struct ftp *ftp, struct ftp_transfer *xfer);
-int read_servers(const char *fname);
-struct server *find_server(const char *name);
-int parse_args(int argc, char **argv);
+static int read_servers(const char *fname);
+static struct server *find_server(const char *name);
+static int parse_args(int argc, char **argv);
 
 static struct ftp *ftp;
 static struct tui_widget *uilist[2];
@@ -172,7 +175,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-void updateui(void)
+static void updateui(void)
 {
 	int i, num, progr;
 	struct ftp_dirent *ent;
@@ -267,7 +270,7 @@ void updateui(void)
 	}
 }
 
-int update_localdir(void)
+static int update_localdir(void)
 {
 	DIR *dir;
 	struct dirent *dent;
@@ -305,7 +308,7 @@ int update_localdir(void)
 	return 0;
 }
 
-int proc_input(void)
+static int proc_input(void)
 {
 	union event ev;
 
@@ -324,7 +327,7 @@ int proc_input(void)
 	return 0;
 }
 
-int keypress(int key)
+static int keypress(int key)
 {
 	int sel;
 
@@ -374,26 +377,7 @@ int keypress(int key)
 		break;
 
 	case '\n':
-		sel = tui_get_list_sel(uilist[focus]);
-		if(focus == 0) {
-			struct ftp_dirent *ent = ftp_dirent(ftp, sel);
-			if(ent->type == FTP_DIR) {
-				ftp_queue(ftp, FTP_CHDIR, ent->name);
-			} else {
-				/* TODO */
-			}
-		} else {
-			if(localdir[sel].type == FTP_DIR) {
-				if(chdir(localdir[sel].name) == -1) {
-					errmsg("failed to change directory: %s\n", localdir[sel].name);
-				} else {
-					getcwd(curdir, sizeof curdir);
-					update_localdir();
-				}
-			} else {
-				/* TODO */
-			}
-		}
+		act_activate();
 		break;
 
 	case '\b':
@@ -408,54 +392,11 @@ int keypress(int key)
 		break;
 
 	case KB_F3:
-		sel = tui_get_list_sel(uilist[focus]);
-		if(focus == 0) {
-			struct ftp_transfer *xfer;
-			struct ftp_dirent *ent = ftp_dirent(ftp, sel);
-
-			xfer = calloc_nf(1, sizeof *xfer);
-			xfer->mem = darr_alloc(0, 1);
-			xfer->op = FTP_RETR;
-			xfer->rname = strdup_nf(ent->name);
-			xfer->total = ent->size;
-			xfer->done = view_done;
-
-			cur_xfer = xfer;
-
-			ftp_queue_transfer(ftp, xfer);
-		} else {
-			/* TODO */
-		}
+		act_view();
 		break;
 
 	case KB_F5:
-		sel = tui_get_list_sel(uilist[focus]);
-		if(focus == 0) {
-			struct ftp_transfer *xfer;
-			struct ftp_dirent *ent = ftp_dirent(ftp, sel);
-			char *lname = alloca(strlen(ent->name) + 1);
-
-			fixname(lname, ent->name);
-
-			xfer = calloc_nf(1, sizeof *xfer);
-			if(!(xfer->fp = fopen(lname, "wb"))) {
-				errmsg("failed to open %s: %s\n", lname, strerror(errno));
-				free(xfer);
-				break;
-			}
-
-			xfer->op = FTP_RETR;
-			xfer->rname = strdup_nf(ent->name);
-			xfer->total = ent->size;
-			xfer->done = xfer_done;
-
-			cur_xfer = xfer;
-
-			ftp_queue_transfer(ftp, xfer);
-			local_modified = 1;
-		} else {
-			/* TODO */
-		}
+		act_transfer();
 		break;
 
 	case KB_F8:
@@ -477,6 +418,91 @@ int keypress(int key)
 		break;
 	}
 	return 0;
+}
+
+static void act_activate(void)
+{
+	int sel;
+	sel = tui_get_list_sel(uilist[focus]);
+	if(focus == 0) {
+		struct ftp_dirent *ent = ftp_dirent(ftp, sel);
+		if(ent->type == FTP_DIR) {
+			ftp_queue(ftp, FTP_CHDIR, ent->name);
+		} else {
+			/* TODO */
+		}
+	} else {
+		if(localdir[sel].type == FTP_DIR) {
+			if(chdir(localdir[sel].name) == -1) {
+				errmsg("failed to change directory: %s\n", localdir[sel].name);
+			} else {
+				getcwd(curdir, sizeof curdir);
+				update_localdir();
+			}
+		} else {
+			/* TODO */
+		}
+	}
+}
+
+static void act_transfer(void)
+{
+	int sel;
+	struct ftp_transfer *xfer;
+	struct ftp_dirent *ent;
+	char *lname;
+
+	sel = tui_get_list_sel(uilist[focus]);
+	if(focus == 0) {
+		ent = ftp_dirent(ftp, sel);
+		lname = alloca(strlen(ent->name) + 1);
+
+		fixname(lname, ent->name);
+
+		xfer = calloc_nf(1, sizeof *xfer);
+		if(!(xfer->fp = fopen(lname, "wb"))) {
+			errmsg("failed to open %s: %s\n", lname, strerror(errno));
+			free(xfer);
+			return;
+		}
+
+		xfer->op = FTP_RETR;
+		xfer->rname = strdup_nf(ent->name);
+		xfer->total = ent->size;
+		xfer->done = xfer_done;
+
+		cur_xfer = xfer;
+
+		ftp_queue_transfer(ftp, xfer);
+		local_modified = 1;
+	} else {
+		/* TODO */
+	}
+}
+
+static void act_view(void)
+{
+	int sel;
+	struct ftp_transfer *xfer;
+	struct ftp_dirent *ent;
+
+	sel = tui_get_list_sel(uilist[focus]);
+	if(focus == 0) {
+		ent = ftp_dirent(ftp, sel);
+
+		xfer = calloc_nf(1, sizeof *xfer);
+		xfer->mem = darr_alloc(0, 1);
+		xfer->op = FTP_RETR;
+		xfer->rname = strdup_nf(ent->name);
+		xfer->total = ent->size;
+		xfer->done = view_done;
+
+		cur_xfer = xfer;
+
+		ftp_queue_transfer(ftp, xfer);
+	} else {
+		/* TODO */
+	}
 }
 
 static void fixname(char *dest, const char *src)
