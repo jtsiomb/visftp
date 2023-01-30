@@ -5,4 +5,4 @@ fname=/etherdfs/visftp.zip
 #git archive -o $fname HEAD
 rm -f $fname
 #zip $fname Makefile src/*.c src/*.h src/dos/*.c src/dos/*.h src/unix/*.c src/unix/*.h scripts/*
-zip -x \*.swp -x \*.o -x \*.obj -r $fname *
+zip -x visftp -x \*.swp -x \*.o -x \*.obj -x \*.OBJ -x \*.LNK -x \*.MAP -x \*.log -x \*.LOG -x \*.d -x \*.EXE -x \*.exe -r $fname *

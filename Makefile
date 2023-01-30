@@ -1,4 +1,5 @@
-obj = main.obj tgfx.obj tui.obj tui_list.obj darray.obj util.obj input.obj ftp.obj
+obj = main.obj tgfx.obj tui.obj tui_list.obj darray.obj util.obj input.obj &
+	ftp.obj viewer.obj
 bin = visftp.exe
 
 !ifdef __UNIX__

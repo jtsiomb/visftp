@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <signal.h>
 #include <errno.h>
 #include <assert.h>
@@ -16,11 +17,20 @@
 #include "util.h"
 #include "tui.h"
 #include "ftp.h"
+#include "viewer.h"
 #include "darray.h"
 
 #ifdef __DOS__
 #define select	select_s
 #endif
+
+struct server {
+	char *name;
+	char *host;
+	char *user;
+	char *pass;
+};
+
 
 void updateui(void);
 int update_localdir(void);
@@ -28,6 +38,9 @@ int proc_input(void);
 int keypress(int key);
 static void fixname(char *dest, const char *src);
 static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer);
+static void view_done(struct ftp *ftp, struct ftp_transfer *xfer);
+int read_servers(const char *fname);
+struct server *find_server(const char *name);
 int parse_args(int argc, char **argv);
 
 static struct ftp *ftp;
@@ -37,6 +50,7 @@ static int focus;
 
 static char *host = "localhost";
 static int port = 21;
+static struct server *srvlist;
 
 static char curdir[PATH_MAX + 1];
 static struct ftp_dirent *localdir;
@@ -56,6 +70,7 @@ int main(int argc, char **argv)
 	int ftpsock[16];
 	fd_set rdset;
 	struct timeval tv;
+	struct server *srv;
 
 #ifdef __DOS__
 	detect_lfn();
@@ -65,6 +80,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	read_servers("visftp.srv");
+
 	localdir = darr_alloc(0, sizeof *localdir);
 	getcwd(curdir, sizeof curdir);
 	update_localdir();
@@ -72,7 +89,12 @@ int main(int argc, char **argv)
 	if(!(ftp = ftp_alloc())) {
 		return 1;
 	}
-	if(ftp_connect(ftp, host, port) == -1) {
+
+	if((srv = find_server(host))) {
+		ftp_auth(ftp, srv->user, srv->pass);
+	}
+
+	if(ftp_connect(ftp, srv ? srv->host : host, port) == -1) {
 		ftp_free(ftp);
 		return 1;
 	}
@@ -378,6 +400,27 @@ int keypress(int key)
 		}
 		break;
 
+	case KB_F3:
+		sel = tui_get_list_sel(uilist[focus]);
+		if(focus == 0) {
+			struct ftp_transfer *xfer;
+			struct ftp_dirent *ent = ftp_dirent(ftp, sel);
+
+			xfer = calloc_nf(1, sizeof *xfer);
+			xfer->mem = darr_alloc(0, 1);
+			xfer->op = FTP_RETR;
+			xfer->rname = strdup_nf(ent->name);
+			xfer->total = ent->size;
+			xfer->done = view_done;
+
+			cur_xfer = xfer;
+
+			ftp_queue_transfer(ftp, xfer);
+		} else {
+			/* TODO */
+		}
+		break;
+
 	case KB_F5:
 		sel = tui_get_list_sel(uilist[focus]);
 		if(focus == 0) {
@@ -387,7 +430,7 @@ int keypress(int key)
 
 			fixname(lname, ent->name);
 
-			xfer = malloc_nf(sizeof *xfer);
+			xfer = calloc_nf(1, sizeof *xfer);
 			if(!(xfer->fp = fopen(lname, "wb"))) {
 				errmsg("failed to open %s: %s\n", lname, strerror(errno));
 				free(xfer);
@@ -397,7 +440,6 @@ int keypress(int key)
 			xfer->op = FTP_RETR;
 			xfer->rname = strdup_nf(ent->name);
 			xfer->total = ent->size;
-			xfer->count = 0;
 			xfer->done = xfer_done;
 
 			cur_xfer = xfer;
@@ -469,6 +511,87 @@ static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer)
 	update_localdir();
 
 	cur_xfer = 0;
+}
+
+static void view_done(struct ftp *ftp, struct ftp_transfer *xfer)
+{
+	view_memopen(xfer->rname, xfer->mem, xfer->count);
+
+	free(xfer->rname);
+	free(xfer);
+
+	cur_xfer = 0;
+}
+
+static char *clean_line(char *s)
+{
+	char *end;
+	while(*s && isspace(*s)) s++;
+	end = s + strlen(s);
+	while(end > s && isspace(*--end)) *end = 0;
+	return s;
+}
+
+int read_servers(const char *fname)
+{
+	FILE *fp;
+	char buf[256];
+	char *line, *ptr;
+	struct server srv;
+
+	if(!srvlist) {
+		srvlist = darr_alloc(0, sizeof *srvlist);
+	}
+
+	if(!(fp = fopen(fname, "rb"))) {
+		return -1;
+	}
+
+	while(fgets(buf, sizeof buf, fp)) {
+		line = clean_line(buf);
+		if(!*line || *line == '#') continue;
+
+		if(!(ptr = strchr(line, '=')) || !ptr[1]) continue;
+		*ptr = 0;
+
+		clean_line(line);
+		memset(&srv, 0, sizeof srv);
+		srv.name = strdup_nf(line);
+
+		line = clean_line(ptr + 1);
+
+		if(!(ptr = strchr(line, '@'))) {
+			srv.host = strdup_nf(line);
+		} else {
+			*ptr++ = 0;
+			if(!*ptr) {
+				free(srv.name);
+				continue;
+			}
+			srv.host = strdup_nf(ptr);
+
+			if((ptr = strchr(line, ':')) && ptr > line + 1 && ptr[1]) {
+				*ptr = 0;
+				srv.user = strdup_nf(line);
+				srv.pass = strdup_nf(ptr + 1);
+			}
+		}
+
+		darr_push(srvlist, &srv);
+	}
+	return 0;
+}
+
+struct server *find_server(const char *name)
+{
+	int i, num = darr_size(srvlist);
+
+	for(i=0; i<num; i++) {
+		if(strcmp(srvlist[i].name, name) == 0) {
+			return srvlist + i;
+		}
+	}
+	return 0;
 }
 
 static const char *usage = "Usage: %s [options] [hostname] [port]\n"

@@ -79,6 +79,14 @@ void ftp_free(struct ftp *ftp)
 	free_dir(ftp->dirent);
 }
 
+void ftp_auth(struct ftp *ftp, const char *user, const char *pass)
+{
+	free(ftp->user);
+	free(ftp->pass);
+	ftp->user = strdup_nf(user);
+	ftp->pass = strdup_nf(pass);
+}
+
 static void free_dir(struct ftp_dirent *dir)
 {
 	int i;
@@ -435,7 +443,11 @@ static int sendcmd(struct ftp *ftp, const char *fmt, ...)
 	va_start(ap, fmt);
 	vsnprintf(buf, sizeof buf, fmt, ap);
 	va_end(ap);
-	infomsg("send: %s\n", buf);
+	if(strstr(buf, "pass ") == buf) {
+		infomsg("send: pass <password>\n");
+	} else {
+		infomsg("send: %s\n", buf);
+	}
 	strcat(buf, "\r\n");
 	return send(ftp->ctl, buf, strlen(buf), 0);
 }

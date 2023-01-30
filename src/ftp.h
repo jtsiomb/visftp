@@ -81,7 +81,7 @@ struct ftp_transfer {
 struct ftp *ftp_alloc(void);
 void ftp_free(struct ftp *ftp);
 
-void ftp_auth(const char *user, const char *pass);
+void ftp_auth(struct ftp *ftp, const char *user, const char *pass);
 
 int ftp_connect(struct ftp *ftp, const char *host, int port);
 void ftp_close(struct ftp *ftp);
