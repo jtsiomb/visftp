@@ -679,7 +679,7 @@ void detect_lfn(void)
 
 	intdosx(&regs, &regs, &sregs);
 
-	if(regs.w.cflag == 0) {
+	if(regs.w.ax != 0x7100 && regs.w.cflag == 0) {
 		infomsg("long filenames available\n");
 		have_lfn = 1;
 	} else {
