@@ -92,8 +92,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if((srv = find_server(host))) {
-		ftp_auth(ftp, srv->user, srv->pass);
+	if((srv = find_server(host)) && srv->user) {
+		ftp_auth(ftp, srv->user, srv->pass ? srv->pass : "foobar");
 	}
 
 	if(ftp_connect(ftp, srv ? srv->host : host, port) == -1) {
@@ -158,6 +158,11 @@ int main(int argc, char **argv)
 		}
 
 		updateui();
+
+		if(srv && srv->dir && ftp->status) {
+			ftp_queue(ftp, FTP_CHDIR, srv->dir);
+			srv = 0;
+		}
 	}
 
 	tg_cleanup();
