@@ -19,6 +19,7 @@
 #include "ftp.h"
 #include "viewer.h"
 #include "darray.h"
+#include "treestor.h"
 
 #ifdef __DOS__
 #define select	select_s
@@ -524,62 +525,47 @@ static void view_done(struct ftp *ftp, struct ftp_transfer *xfer)
 	cur_xfer = 0;
 }
 
-static char *clean_line(char *s)
-{
-	char *end;
-	while(*s && isspace(*s)) s++;
-	end = s + strlen(s);
-	while(end > s && isspace(*--end)) *end = 0;
-	return s;
-}
-
 int read_servers(const char *fname)
 {
-	FILE *fp;
-	char buf[256];
-	char *line, *ptr;
+	const char *str;
+	struct ts_node *ts, *node;
 	struct server srv;
 
-	if(!srvlist) {
-		srvlist = darr_alloc(0, sizeof *srvlist);
-	}
-
-	if(!(fp = fopen(fname, "rb"))) {
+	if(!(ts = ts_load(fname)) || strcmp(ts->name, "servers") != 0) {
 		return -1;
 	}
 
-	while(fgets(buf, sizeof buf, fp)) {
-		line = clean_line(buf);
-		if(!*line || *line == '#') continue;
+	srvlist = darr_alloc(0, sizeof *srvlist);
 
-		if(!(ptr = strchr(line, '=')) || !ptr[1]) continue;
-		*ptr = 0;
-
-		clean_line(line);
-		memset(&srv, 0, sizeof srv);
-		srv.name = strdup_nf(line);
-
-		line = clean_line(ptr + 1);
-
-		if(!(ptr = strchr(line, '@'))) {
-			srv.host = strdup_nf(line);
-		} else {
-			*ptr++ = 0;
-			if(!*ptr) {
-				free(srv.name);
-				continue;
+	node = ts->child_list;
+	while(node) {
+		if(strcmp(node->name, "server") == 0) {
+			memset(&srv, 0, sizeof srv);
+			if(!(srv.name = (char*)ts_get_attr_str(node, "name", 0))) {
+				goto skip;
 			}
-			srv.host = strdup_nf(ptr);
-
-			if((ptr = strchr(line, ':')) && ptr > line + 1 && ptr[1]) {
-				*ptr = 0;
-				srv.user = strdup_nf(line);
-				srv.pass = strdup_nf(ptr + 1);
+			if(!(srv.host = (char*)ts_get_attr_str(node, "host", 0))) {
+				goto skip;
 			}
+			srv.name = strdup_nf(srv.name);
+			srv.host = strdup_nf(srv.host);
+			if((str = ts_get_attr_str(node, "user", 0))) {
+				srv.user = strdup_nf(str);
+			}
+			if((str = ts_get_attr_str(node, "pass", 0))) {
+				srv.pass = strdup_nf(str);
+			}
+			if((str = ts_get_attr_str(node, "dir", 0))) {
+				srv.dir = strdup_nf(str);
+			}
+
+			darr_push(srvlist, &srv);
 		}
-
-		darr_push(srvlist, &srv);
+skip:
+		node = node->next;
 	}
+
+	ts_free_tree(ts);
 	return 0;
 }
 
