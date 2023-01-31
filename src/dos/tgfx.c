@@ -66,6 +66,18 @@ void tg_setcursor(int x, int y)
 	outpw(CRTC_ADDR_PORT, (addr << 8) | REG_CRTC_CURL);
 }
 
+void tg_putchar(int x, int y, int c)
+{
+	static int prev_y = -1;
+	static unsigned short *lineptr;
+
+	if(y != prev_y) {
+		lineptr = framebuf + y * 80;
+		prev_y = y;
+	}
+	lineptr[x] = c | attr;
+}
+
 void tg_text(int x, int y, const char *fmt, ...)
 {
 	va_list ap;

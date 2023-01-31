@@ -25,6 +25,13 @@
 #define select	select_s
 #endif
 
+enum {
+	UI_STATUS		= 1,
+	UI_XFER			= 2,
+	UI_CONLINE		= 4,
+	UI_BUTTONS		= 8
+};
+
 struct server {
 	char *name;
 	char *host;
@@ -38,6 +45,7 @@ static void updateui(void);
 static int update_localdir(void);
 static int proc_input(void);
 static int keypress(int key);
+static void act_redraw(void);
 static void act_activate(void);
 static void act_transfer(void);
 static void act_view(void);
@@ -52,6 +60,7 @@ static struct ftp *ftp;
 static struct tui_widget *uilist[2];
 
 static int focus;
+static unsigned int dirty;
 
 static char *host = "localhost";
 static int port = 21;
@@ -160,7 +169,11 @@ int main(int argc, char **argv)
 			}
 		}
 
-		updateui();
+		if(view_isopen()) {
+			view_update();
+		} else {
+			updateui();
+		}
 
 		if(srv && srv->dir && ftp->status) {
 			ftp_queue(ftp, FTP_CHDIR, srv->dir);
@@ -185,9 +198,10 @@ static void updateui(void)
 	static int prev_status;
 	static void *prev_xfer;
 
-	if(ftp->status != prev_status) {
+	if(ftp->status != prev_status || (dirty & UI_STATUS)) {
 		tg_fgcolor(ftp->status ? TGFX_GREEN : TGFX_RED);
 		tg_bgcolor(TGFX_BLACK);
+		tg_rect(0, 0, 0, 40, 1, 0);
 		tg_text(0, 0, "Srv: %s", ftp->status ? host : "-");
 		upd |= 0x8000;
 		prev_status = ftp->status;
@@ -207,7 +221,7 @@ static void updateui(void)
 			tg_text(75, 0, " %3d%%", progr);
 		}
 		upd |= 0x8000;
-	} else if(prev_xfer) {
+	} else if(prev_xfer || (dirty & UI_XFER)) {
 		tg_rect(0, 40, 0, 40, 1, 0);
 		upd |= 0x8000;
 	}
@@ -263,6 +277,13 @@ static void updateui(void)
 	}
 	if(tui_isdirty(uilist[1]) || upd & 2) {
 		tui_draw(uilist[1]);
+	}
+
+	if(dirty & UI_CONLINE) {
+		tg_bgcolor(TGFX_BLACK);
+		tg_fgcolor(TGFX_WHITE);
+		tg_rect(0, 0, 22, 80, 1, 0);
+		upd = 1;
 	}
 
 	if(upd) {
@@ -331,6 +352,11 @@ static int keypress(int key)
 {
 	int sel;
 
+	if(view_isopen()) {
+		view_input(key);
+		return 0;
+	}
+
 	switch(key) {
 	case 27:
 	case 'q':
@@ -338,8 +364,7 @@ static int keypress(int key)
 		return -1;
 
 	case '`':
-		tui_invalidate(uilist[0]);
-		tui_invalidate(uilist[1]);
+		act_redraw();
 		break;
 
 	case '\t':
@@ -420,6 +445,13 @@ static int keypress(int key)
 	return 0;
 }
 
+static void act_redraw(void)
+{
+	tui_invalidate(uilist[0]);
+	tui_invalidate(uilist[1]);
+	dirty = 0xffff;
+}
+
 static void act_activate(void)
 {
 	int sel;
@@ -485,6 +517,8 @@ static void act_view(void)
 	int sel;
 	struct ftp_transfer *xfer;
 	struct ftp_dirent *ent;
+	FILE *fp;
+	char *buf;
 
 	sel = tui_get_list_sel(uilist[focus]);
 	if(focus == 0) {
@@ -501,7 +535,27 @@ static void act_view(void)
 
 		ftp_queue_transfer(ftp, xfer);
 	} else {
-		/* TODO */
+		ent = localdir + sel;
+
+		if(!(buf = malloc(ent->size))) {
+			errmsg("failed to allocate file buffer (%ld bytes)\n", ent->size);
+			return;
+		}
+		if(!(fp = fopen(ent->name, "rb"))) {
+			errmsg("failed to open file: %s: %s\n", ent->name, strerror(errno));
+			free(buf);
+			return;
+		}
+		if(fread(buf, 1, ent->size, fp) < ent->size) {
+			errmsg("failed to read file: %s\n", ent->name);
+			fclose(fp);
+			free(buf);
+			return;
+		}
+		view_memopen(ent->name, buf, ent->size, 0);
+
+		fclose(fp);
+		act_redraw();
 	}
 }
 
@@ -548,12 +602,13 @@ static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer)
 
 static void view_done(struct ftp *ftp, struct ftp_transfer *xfer)
 {
-	view_memopen(xfer->rname, xfer->mem, xfer->count);
-
+	view_memopen(xfer->rname, xfer->mem, xfer->count, darr_free);
+	/* viewer takes ownership of xfer->mem */
 	free(xfer->rname);
 	free(xfer);
 
 	cur_xfer = 0;
+	act_redraw();
 }
 
 int read_servers(const char *fname)

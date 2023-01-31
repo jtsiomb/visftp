@@ -1,4 +1,5 @@
 #include <string.h>
+#include <ctype.h>
 #include <curses.h>
 #include "tgfx.h"
 #include "util.h"
@@ -82,6 +83,14 @@ void tg_setcursor(int x, int y)
 	cur_y = y;
 }
 
+void tg_putchar(int x, int y, int c)
+{
+	if(!isprint(c)) {
+		c = '?';
+	}
+	move(y, x);
+	addch(c | COLOR_PAIR(cur_pair));
+}
 
 void tg_text(int x, int y, const char *fmt, ...)
 {
