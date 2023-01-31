@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <time.h>
+#include <assert.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <sys/swap.h>
@@ -37,7 +38,6 @@
 static void free_dir(struct ftp_dirent *dir);
 
 static int newconn(struct ftp *ftp);
-static void op_done(struct ftp *ftp);
 static int sendcmd(struct ftp *ftp, const char *fmt, ...);
 static int handle_control(struct ftp *ftp);
 static int handle_data(struct ftp *ftp, int s);
@@ -413,19 +413,26 @@ static int ftp_passive(struct ftp *ftp)
 int ftp_handle(struct ftp *ftp, int s)
 {
 	if(s == ftp->ctl) {
-		return handle_control(ftp);
-	}
-	if(s == ftp->data) {
-		return handle_data(ftp, s);
-	}
-	if(s == ftp->lis) {
+		if(handle_control(ftp) == -1) {
+			return -1;
+		}
+
+	} else if(s == ftp->data) {
+		handle_data(ftp, s);
+
+	} else if(s == ftp->lis) {
 		int ns = accept(s, 0, 0);
 		if(ftp->data >= 0) {
 			closesocket(ns);
 		} else {
 			ftp->data = ns;
 		}
-		return 0;
+	}
+
+	if(ftp->busy <= 0) {
+		assert(ftp->busy == 0);
+		ftp->busy = 0;	/* make sure we didn't end up negative due to some bug */
+		exec_queued(ftp);
 	}
 	return -1;
 }
@@ -439,7 +446,7 @@ static int sendcmd(struct ftp *ftp, const char *fmt, ...)
 		return -1;
 	}
 
-	ftp->busy = 1;
+	ftp->busy++;
 
 	va_start(ap, fmt);
 	vsnprintf(buf, sizeof buf, fmt, ap);
@@ -570,7 +577,7 @@ static void proc_control(struct ftp *ftp, const char *buf)
 
 	if(ftp->cproc) {
 		if(ftp->cproc(ftp, code, buf, ftp->cproc_cls) <= 0) {
-			op_done(ftp);
+			ftp->busy--;
 		}
 		return;
 	}
@@ -595,7 +602,7 @@ static void proc_control(struct ftp *ftp, const char *buf)
 		break;
 
 	default:
-		op_done(ftp);
+		ftp->busy = 0;
 	}
 }
 
@@ -605,15 +612,6 @@ static int newconn(struct ftp *ftp)
 	ftp_queue(ftp, FTP_PWD, 0);
 	ftp_queue(ftp, FTP_LIST, 0);
 	return 0;
-}
-
-static void op_done(struct ftp *ftp)
-{
-	ftp->cproc = 0;
-	ftp->dproc = 0;
-	ftp->busy = 0;
-	/* execute next operation if there's one queued */
-	exec_queued(ftp);
 }
 
 int ftp_update(struct ftp *ftp)
@@ -713,6 +711,7 @@ int ftp_list(struct ftp *ftp)
 	ftp->cproc = cproc_list;
 	ftp->dproc = dproc_list;
 	ftp->cproc_cls = ftp->dproc_cls = rbuf;
+	ftp->busy++;	/* increment busy for data transfers */
 	return 0;
 }
 
@@ -739,6 +738,7 @@ int ftp_transfer(struct ftp *ftp, struct ftp_transfer *xfer)
 		ftp->cproc = cproc_xfer;
 		ftp->dproc = dproc_xfer;
 		ftp->cproc_cls = ftp->dproc_cls = xfer;
+		ftp->busy++;	/* increment busy for data transfers */
 	} else {
 		/* TODO */
 	}
@@ -975,6 +975,8 @@ static void dproc_list(struct ftp *ftp, const char *buf, int sz, void *cls)
 
 		num = darr_size(ftp->dirent);
 		qsort(ftp->dirent, num, sizeof *ftp->dirent, ftp_direntcmp);
+
+		ftp->busy--;	/* decrement busy on connection close */
 		return;
 	}
 
@@ -1021,6 +1023,7 @@ static void dproc_xfer(struct ftp *ftp, const char *buf, int sz, void *cls)
 
 	if(xfer->op == FTP_RETR) {
 		if(sz == 0) {
+			infomsg("data connection closed\n");
 			/* EOF condition, got the whole file */
 			if(xfer->fp) {
 				fclose(xfer->fp);
@@ -1030,6 +1033,8 @@ static void dproc_xfer(struct ftp *ftp, const char *buf, int sz, void *cls)
 			if(xfer->done) {
 				xfer->done(ftp, xfer);
 			}
+
+			ftp->busy--;	/* decrement busy on connection close */
 			return;
 		}
 

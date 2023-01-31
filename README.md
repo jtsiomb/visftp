@@ -14,7 +14,7 @@ visftp was written to address the lack of graphical FTP clients for DOS
 (MS-DOS, FreeDOS, etc), but will also run on UNIX systems using curses for its
 UI.
 
-**Release status**: *Prototype*. visftp mostly works, but it's very rough, and you
+**Project status**: *Prototype*. visftp mostly works, but it's very rough, and you
 will find lots of bugs. Feel free to open bug reports, but keep in mind that the
 most obvious issues will be solved as a matter of course as this project
 progresses.

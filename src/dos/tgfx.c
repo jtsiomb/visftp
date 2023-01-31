@@ -18,6 +18,11 @@ void tg_init(void)
 
 void tg_cleanup(void)
 {
+	int i;
+	for(i=0; i<80*25; i++) {
+		framebuf[i] = 0x0720;
+	}
+	tg_setcursor(0, 0);
 }
 
 void tg_redraw(void)
