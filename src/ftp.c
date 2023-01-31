@@ -888,7 +888,7 @@ static int parse_dirent(struct ftp_dirent *ent, const char *line)
 {
 	int len;
 	const char *ptr = line;
-	const char *end;
+	const char *end, *name;
 
 	if(!(end = strchr(line, '\r')) && !(end = strchr(line, '\n'))) {
 		return -1;
@@ -914,10 +914,24 @@ static int parse_dirent(struct ftp_dirent *ent, const char *line)
 	SKIP_FIELD(ptr);		/* skip year */
 
 	if(ptr >= end) return -1;
+	name = ptr;
 
-	len = end - ptr;
+	while(ptr < end) {
+		if(ptr[0] == '-' && ptr[1] == '>') {
+			end = ptr;
+			while(--ptr > name && isspace(*ptr)) {
+				end = ptr;
+			}
+			break;
+		}
+		ptr++;
+	}
+
+	if((len = end - name) <= 0) {
+		return -1;
+	}
 	ent->name = malloc(len + 1);
-	memcpy(ent->name, ptr, len);
+	memcpy(ent->name, name, len);
 	ent->name[len] = 0;
 
 	return 0;
