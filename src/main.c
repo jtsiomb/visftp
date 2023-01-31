@@ -602,8 +602,12 @@ static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer)
 
 static void view_done(struct ftp *ftp, struct ftp_transfer *xfer)
 {
-	view_memopen(xfer->rname, xfer->mem, xfer->count, darr_free);
-	/* viewer takes ownership of xfer->mem */
+	if(xfer->count > 0) {
+		/* viewer takes ownership of xfer->mem */
+		view_memopen(xfer->rname, xfer->mem, xfer->count, darr_free);
+	} else {
+		darr_free(xfer->mem);
+	}
 	free(xfer->rname);
 	free(xfer);
 

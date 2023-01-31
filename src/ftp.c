@@ -37,6 +37,7 @@
 static void free_dir(struct ftp_dirent *dir);
 
 static int newconn(struct ftp *ftp);
+static void op_done(struct ftp *ftp);
 static int sendcmd(struct ftp *ftp, const char *fmt, ...);
 static int handle_control(struct ftp *ftp);
 static int handle_data(struct ftp *ftp, int s);
@@ -569,11 +570,7 @@ static void proc_control(struct ftp *ftp, const char *buf)
 
 	if(ftp->cproc) {
 		if(ftp->cproc(ftp, code, buf, ftp->cproc_cls) <= 0) {
-			ftp->cproc = 0;
-			ftp->busy = 0;
-
-			/* execute next operation if there's one queued */
-			exec_queued(ftp);
+			op_done(ftp);
 		}
 		return;
 	}
@@ -598,10 +595,7 @@ static void proc_control(struct ftp *ftp, const char *buf)
 		break;
 
 	default:
-		ftp->busy = 0;
-
-		/* execute next operation if there's one queued */
-		exec_queued(ftp);
+		op_done(ftp);
 	}
 }
 
@@ -611,6 +605,15 @@ static int newconn(struct ftp *ftp)
 	ftp_queue(ftp, FTP_PWD, 0);
 	ftp_queue(ftp, FTP_LIST, 0);
 	return 0;
+}
+
+static void op_done(struct ftp *ftp)
+{
+	ftp->cproc = 0;
+	ftp->dproc = 0;
+	ftp->busy = 0;
+	/* execute next operation if there's one queued */
+	exec_queued(ftp);
 }
 
 int ftp_update(struct ftp *ftp)
@@ -993,6 +996,7 @@ static int cproc_xfer(struct ftp *ftp, int code, const char *buf, void *cls)
 
 	if(code >= 400) {
 		errmsg("failed to retrieve file\n");
+		xfer->done(ftp, xfer);
 	}
 	return 0;
 }
