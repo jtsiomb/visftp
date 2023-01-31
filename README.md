@@ -4,6 +4,8 @@ visftp - visual ftp client with dual-pane text-mode UI
 ![dos (watcom) build status](https://github.com/jtsiomb/visftp/actions/workflows/build_dos_watcom.yml/badge.svg)
 ![GNU/Linux build status](https://github.com/jtsiomb/visftp/actions/workflows/build_gnulinux.yml/badge.svg)
 
+![visftp shot](http://nuclear.mutantstargoat.com/sw/visftp/img/visftp_shot-thumb.jpg)
+
 visftp is a text-mode graphical ftp client, with a dual-pane UI , also known as
 the "orthodox" file management UI paradigm. The dual-pane UI design is a
 perfect fit for an FTP client, where the user is required to navigate two
