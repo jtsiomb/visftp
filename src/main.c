@@ -126,6 +126,7 @@ int main(int argc, char **argv)
 	tui_focus(uilist[focus], 1);
 
 	local_modified = 1;
+	dirty = 0xffff;
 
 	tg_setcursor(0, 23);
 
@@ -286,7 +287,31 @@ static void updateui(void)
 		upd = 1;
 	}
 
+	if(dirty & UI_BUTTONS) {
+		static const char *bntext[] = {
+			"Help  ", "      ", "View  ", "      ", "Downld",
+			"      ", "Mkdir ", "Delete", "PullDn", "Quit  "
+		};
+		int x = 0;
+		for(i=0; i<10; i++) {
+			tg_fgcolor(TGFX_WHITE);
+			tg_bgcolor(TGFX_BLACK);
+			tg_text(x, 23, "%2d", i + 1);
+			x += 2;
+			tg_fgcolor(TGFX_BLACK);
+			tg_bgcolor(TGFX_CYAN);
+			if(i == 4 && focus == 1) {
+				tg_text(x, 23, "Upload");
+			} else {
+				tg_text(x, 23, bntext[i]);
+			}
+			x += 6;
+		}
+		upd = 1;
+	}
+
 	if(upd) {
+		dirty = 0;
 		tg_redraw();
 	}
 }
@@ -371,6 +396,7 @@ static int keypress(int key)
 		tui_focus(uilist[focus], 0);
 		focus ^= 1;
 		tui_focus(uilist[focus], 1);
+		dirty |= UI_BUTTONS;
 		break;
 
 	case KB_UP:

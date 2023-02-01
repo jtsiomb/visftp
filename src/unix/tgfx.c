@@ -85,6 +85,7 @@ void tg_setcursor(int x, int y)
 
 void tg_putchar(int x, int y, int c)
 {
+	upd_color();
 	if(!isprint(c)) {
 		c = '?';
 	}

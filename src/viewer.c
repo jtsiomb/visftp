@@ -4,6 +4,12 @@
 #include "util.h"
 #include "input.h"
 
+enum {
+	UI_TEXT	= 1,
+	UI_FRAME = 2,
+	UI_BUTTONS = 4
+};
+
 struct span {
 	char *start;
 	long len;
@@ -46,7 +52,7 @@ void view_memopen(const char *name, void *start, long size, void (*freefunc)(voi
 	}
 
 	freedata = freefunc;
-	dirty = 1;
+	dirty = 0xffff;
 }
 
 void view_close(void)
@@ -67,36 +73,68 @@ int view_isopen(void)
 
 void view_update(void)
 {
-	int x, i, j, c;
-	char *ptr;
+	int x, i, c, ts;
+	char *ptr, *end;
 	struct span *span;
+	static const char *bntext[] = {
+		"Help  ", "      ", "      ", "Hex   ", "      ",
+		"      ", "Search", "      ", "      ", "Quit  "
+	};
 
 	if(!dirty) return;
 
-	tg_fgcolor(TGFX_WHITE);
-	tg_bgcolor(TGFX_BLUE);
+	if(dirty & UI_FRAME) {
+		tg_fgcolor(TGFX_WHITE);
+		tg_bgcolor(TGFX_BLUE);
 
-	tg_rect(title, 0, 0, 80, 23, TGFX_FRAME);
+		tg_rect(title, 0, 0, 80, 23, TGFX_FRAME);
+	}
 
-	span = lines + vscroll;
-	for(i=0; i<darr_size(lines) && i < num_vislines - 1; i++) {
-		x = 0;
-		ptr = span->start;
+	if(dirty & UI_TEXT) {
+		tg_fgcolor(TGFX_WHITE);
+		tg_bgcolor(TGFX_BLUE);
 
-		for(j=0; j<span->len; j++) {
-			if(x >= num_viscol) break;
+		span = lines + vscroll;
+		for(i=0; i<darr_size(lines) && i < num_vislines - 1; i++) {
+			x = 0;
+			ptr = span->start;
+			end = span->start + span->len;
 
-			c = *ptr++;
+			while(x < num_viscol) {
+				if(ptr >= end) {
+					x -= hscroll;
+					if(x < 0) x = 0;
+					tg_rect(0, x + 1, i + 1, num_viscol - x, 1, 0);
+					break;
+				}
+				c = *ptr++;
 
-			if(c == '\t') {
-				x = (x + 4) & 0xfffc;
-			} else {
-				if(++x - hscroll > 0) {
-					tg_putchar(x - hscroll, i + 1, c);
+				if(c == '\t') {
+					ts = (x + 4) & 0xfffc;
+					tg_rect(0, x + 1, i + 1, ts - x, 1, 0);
+					x = ts;
+				} else {
+					if(++x - hscroll > 0) {
+						tg_putchar(x - hscroll, i + 1, c);
+					}
 				}
 			}
+			span++;
 		}
-		span++;
+	}
+
+	if(dirty & UI_BUTTONS) {
+		x = 0;
+		for(i=0; i<10; i++) {
+			tg_fgcolor(TGFX_WHITE);
+			tg_bgcolor(TGFX_BLACK);
+			tg_text(x, 23, "%2d", i + 1);
+			x += 2;
+			tg_fgcolor(TGFX_BLACK);
+			tg_bgcolor(TGFX_CYAN);
+			tg_text(x, 23, bntext[i]);
+			x += 6;
+		}
 	}
 
 	dirty = 0;
@@ -109,6 +147,10 @@ void view_input(int key)
 	case 27:
 	case KB_F10:
 		view_close();
+		break;
+
+	case '`':
+		dirty = 0xffff;
 		break;
 
 	case KB_HOME:
@@ -152,5 +194,5 @@ void view_input(int key)
 		return;
 	}
 
-	dirty = 1;
+	dirty |= UI_TEXT;
 }
