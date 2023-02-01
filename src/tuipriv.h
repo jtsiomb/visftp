@@ -26,10 +26,16 @@ struct tui_list_entry {
 	void *data;
 };
 
+struct list_entry {
+	char *text;
+	int sel;
+};
+
 struct tui_list {
 	WCOMMON;
-	char **entries;	/* darr */
-	int sel;
+	struct list_entry *entries;	/* darr */
+	int num_sel;
+	int cur;
 	int view_offs;
 };
 

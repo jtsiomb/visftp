@@ -48,6 +48,7 @@ static int keypress(int key);
 static void act_redraw(void);
 static void act_activate(void);
 static void act_transfer(void);
+static void act_delete(void);
 static void act_view(void);
 static void fixname(char *dest, const char *src);
 static void xfer_done(struct ftp *ftp, struct ftp_transfer *xfer);
@@ -248,7 +249,7 @@ static void updateui(void)
 			}
 		}
 
-		tui_list_select(uilist[0], 0);
+		tui_list_setcur(uilist[0], 0);
 
 		ftp->modified &= ~FTP_MOD_DIR;
 		upd |= 1;
@@ -266,7 +267,7 @@ static void updateui(void)
 				tui_add_list_item(uilist[1], ent->name);
 			}
 		}
-		tui_list_select(uilist[1], 0);
+		tui_list_setcur(uilist[1], 0);
 		tui_set_title(uilist[1], curdir);
 
 		local_modified = 0;
@@ -375,7 +376,7 @@ static int proc_input(void)
 
 static int keypress(int key)
 {
-	int sel;
+	int cur;
 
 	if(view_isopen()) {
 		view_input(key);
@@ -399,31 +400,38 @@ static int keypress(int key)
 		dirty |= UI_BUTTONS;
 		break;
 
+	case KB_INS:
+		if((cur = tui_get_list_cur(uilist[focus])) != -1) {
+			tui_list_toggle_sel(uilist[focus], cur);
+			tui_list_cur_next(uilist[focus]);
+		}
+		break;
+
 	case KB_UP:
-		tui_list_sel_prev(uilist[focus]);
+		tui_list_cur_prev(uilist[focus]);
 		break;
 	case KB_DOWN:
-		tui_list_sel_next(uilist[focus]);
+		tui_list_cur_next(uilist[focus]);
 		break;
 	case KB_LEFT:
-		tui_list_sel_start(uilist[focus]);
+		tui_list_cur_start(uilist[focus]);
 		break;
 	case KB_RIGHT:
-		tui_list_sel_end(uilist[focus]);
+		tui_list_cur_end(uilist[focus]);
 		break;
 
 	case KB_PGUP:
-		if((sel = tui_get_list_sel(uilist[focus]) - 16) < 0) {
-			tui_list_sel_start(uilist[focus]);
+		if((cur = tui_get_list_cur(uilist[focus]) - 16) < 0) {
+			tui_list_cur_start(uilist[focus]);
 		} else {
-			tui_list_select(uilist[focus], sel);
+			tui_list_setcur(uilist[focus], cur);
 		}
 		break;
 	case KB_PGDN:
-		if((sel = tui_get_list_sel(uilist[focus]) + 16) >= tui_num_list_items(uilist[focus])) {
-			tui_list_sel_end(uilist[focus]);
+		if((cur = tui_get_list_cur(uilist[focus]) + 16) >= tui_num_list_items(uilist[focus])) {
+			tui_list_cur_end(uilist[focus]);
 		} else {
-			tui_list_select(uilist[focus], sel);
+			tui_list_setcur(uilist[focus], cur);
 		}
 		break;
 
@@ -451,19 +459,8 @@ static int keypress(int key)
 		break;
 
 	case KB_F8:
-		sel = tui_get_list_sel(uilist[focus]);
-		if(focus == 0) {
-		} else {
-			struct ftp_dirent *ent = localdir + sel;
-			if(ent->type == FTP_FILE) {
-				infomsg("removing local file: %s\n", ent->name);
-				remove(ent->name);
-				update_localdir();
-				local_modified = 1;
-			}
-		}
+		act_delete();
 		break;
-
 
 	default:
 		break;
@@ -480,19 +477,19 @@ static void act_redraw(void)
 
 static void act_activate(void)
 {
-	int sel;
-	sel = tui_get_list_sel(uilist[focus]);
+	int cur;
+	cur = tui_get_list_cur(uilist[focus]);
 	if(focus == 0) {
-		struct ftp_dirent *ent = ftp_dirent(ftp, sel);
+		struct ftp_dirent *ent = ftp_dirent(ftp, cur);
 		if(ent->type == FTP_DIR) {
 			ftp_queue(ftp, FTP_CHDIR, ent->name);
 		} else {
 			/* TODO */
 		}
 	} else {
-		if(localdir[sel].type == FTP_DIR) {
-			if(chdir(localdir[sel].name) == -1) {
-				errmsg("failed to change directory: %s\n", localdir[sel].name);
+		if(localdir[cur].type == FTP_DIR) {
+			if(chdir(localdir[cur].name) == -1) {
+				errmsg("failed to change directory: %s\n", localdir[cur].name);
 			} else {
 				getcwd(curdir, sizeof curdir);
 				update_localdir();
@@ -505,50 +502,89 @@ static void act_activate(void)
 
 static void act_transfer(void)
 {
-	int sel;
+	int i;
 	struct ftp_transfer *xfer;
 	struct ftp_dirent *ent;
 	char *lname;
+	int *selv, numsel, nitems;
 
-	sel = tui_get_list_sel(uilist[focus]);
-	if(focus == 0) {
-		ent = ftp_dirent(ftp, sel);
-		lname = alloca(strlen(ent->name) + 1);
+	nitems = tui_num_list_items(uilist[focus]);
+	selv = alloca(nitems * sizeof *selv);
+	if(!(numsel = tui_list_get_sel(uilist[focus], selv, nitems))) {
+		selv[0] = tui_get_list_cur(uilist[focus]);
+		numsel = 1;
+	}
 
-		fixname(lname, ent->name);
+	for(i=0; i<numsel; i++) {
+		if(focus == 0) {
+			ent = ftp_dirent(ftp, selv[i]);
+			lname = alloca(strlen(ent->name) + 1);
 
-		xfer = calloc_nf(1, sizeof *xfer);
-		if(!(xfer->fp = fopen(lname, "wb"))) {
-			errmsg("failed to open %s: %s\n", lname, strerror(errno));
-			free(xfer);
-			return;
+			fixname(lname, ent->name);
+
+			xfer = calloc_nf(1, sizeof *xfer);
+			if(!(xfer->fp = fopen(lname, "wb"))) {
+				errmsg("failed to open %s: %s\n", lname, strerror(errno));
+				free(xfer);
+				return;
+			}
+
+			xfer->op = FTP_RETR;
+			xfer->rname = strdup_nf(ent->name);
+			xfer->total = ent->size;
+			xfer->done = xfer_done;
+
+			cur_xfer = xfer;
+
+			ftp_queue_transfer(ftp, xfer);
+			local_modified = 1;
+		} else {
+			/* TODO */
 		}
+	}
+}
 
-		xfer->op = FTP_RETR;
-		xfer->rname = strdup_nf(ent->name);
-		xfer->total = ent->size;
-		xfer->done = xfer_done;
+static void act_delete(void)
+{
+	int i, *selv, numsel, nitems;
 
-		cur_xfer = xfer;
+	nitems = tui_num_list_items(uilist[focus]);
+	selv = alloca(nitems * sizeof *selv);
+	if(!(numsel = tui_list_get_sel(uilist[focus], selv, nitems))) {
+		if((selv[0] = tui_get_list_cur(uilist[focus])) != -1) {
+			numsel = 1;
+		}
+	}
 
-		ftp_queue_transfer(ftp, xfer);
-		local_modified = 1;
-	} else {
-		/* TODO */
+	for(i=0; i<numsel; i++) {
+		if(focus == 0) {
+			/* TODO */
+		} else {
+			struct ftp_dirent *ent = localdir + selv[i];
+			if(ent->type == FTP_FILE) {
+				infomsg("removing local file: %s\n", ent->name);
+				remove(ent->name);
+				local_modified = 1;
+			}
+		}
+	}
+
+	if(focus == 1 && numsel) {
+		update_localdir();
 	}
 }
 
 static void act_view(void)
 {
-	int sel;
+	int cur;
 	struct ftp_transfer *xfer;
 	struct ftp_dirent *ent;
 	FILE *fp;
 	char *buf;
 
-	sel = tui_get_list_sel(uilist[focus]);
+	cur = tui_get_list_cur(uilist[focus]);
 	if(focus == 0) {
-		ent = ftp_dirent(ftp, sel);
+		ent = ftp_dirent(ftp, cur);
 
 		xfer = calloc_nf(1, sizeof *xfer);
 		xfer->mem = darr_alloc(0, 1);
@@ -561,7 +597,7 @@ static void act_view(void)
 
 		ftp_queue_transfer(ftp, xfer);
 	} else {
-		ent = localdir + sel;
+		ent = localdir + cur;
 
 		if(!(buf = malloc(ent->size))) {
 			errmsg("failed to allocate file buffer (%ld bytes)\n", ent->size);

@@ -49,12 +49,20 @@ void tui_clear_list(struct tui_widget *w);
 void tui_add_list_item(struct tui_widget *w, const char *text);
 int tui_num_list_items(struct tui_widget *w);
 
-int tui_list_select(struct tui_widget *w, int idx);
-int tui_get_list_sel(struct tui_widget *w);
-int tui_list_sel_next(struct tui_widget *w);
-int tui_list_sel_prev(struct tui_widget *w);
-int tui_list_sel_start(struct tui_widget *w);
-int tui_list_sel_end(struct tui_widget *w);
+/* list cursor bar */
+int tui_list_setcur(struct tui_widget *w, int idx);
+int tui_get_list_cur(struct tui_widget *w);
+int tui_list_cur_next(struct tui_widget *w);
+int tui_list_cur_prev(struct tui_widget *w);
+int tui_list_cur_start(struct tui_widget *w);
+int tui_list_cur_end(struct tui_widget *w);
+
+/* list selection */
+int tui_list_toggle_sel(struct tui_widget *w, int idx);
+int tui_list_is_sel(struct tui_widget *w, int idx);
+int tui_list_num_sel(struct tui_widget *w);
+/* returns the number of selected items like tui_list_num_sel */
+int tui_list_get_sel(struct tui_widget *w, int *selv, int maxsel);
 
 void tui_sort_list(struct tui_widget *w, int (*cmpfunc)(const void*, const void*));
 

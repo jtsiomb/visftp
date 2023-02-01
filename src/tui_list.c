@@ -25,7 +25,7 @@ struct tui_widget *tui_list(const char *title, int x, int y, int width, int heig
 	w->height = height;
 
 	w->entries = darr_alloc(0, sizeof *w->entries);
-	w->sel = -1;
+	w->cur = -1;
 	w->dirty = 1;
 
 	if(cbfunc) {
@@ -52,7 +52,7 @@ void tui_clear_list(struct tui_widget *w)
 	assert(wl->type == TUI_LIST);
 
 	for(i=0; i<darr_size(wl->entries); i++) {
-		free(wl->entries[i]);
+		free(wl->entries[i].text);
 	}
 	darr_clear(wl->entries);
 	wl->dirty = 1;
@@ -62,11 +62,13 @@ void tui_clear_list(struct tui_widget *w)
 
 void tui_add_list_item(struct tui_widget *w, const char *text)
 {
-	char *str;
 	struct tui_list *wl = (struct tui_list*)w;
+	struct list_entry item;
+
 	assert(wl->type == TUI_LIST);
-	str = strdup_nf(text);
-	darr_push(wl->entries, &str);
+	item.text = strdup_nf(text);
+	item.sel = 0;
+	darr_push(wl->entries, &item);
 	wl->dirty = 1;
 
 	tui_call_callback(w, TUI_ONMODIFY);
@@ -81,26 +83,26 @@ int tui_num_list_items(struct tui_widget *w)
 
 #define VISLINES(wl)	((wl)->height - 2)
 
-int tui_list_select(struct tui_widget *w, int idx)
+int tui_list_setcur(struct tui_widget *w, int idx)
 {
 	int offs, nelem, numvis;
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
 
-	if(idx == wl->sel) {
+	if(idx == wl->cur) {
 		return 0;	/* no change */
 	}
 
 	numvis = VISLINES(wl);
 
 	if(idx < 0) {
-		wl->sel = -1;
+		wl->cur = -1;
 		return 0;
 	}
 	if(idx >= (nelem = darr_size(wl->entries))) {
 		return -1;
 	}
-	wl->sel = idx;
+	wl->cur = idx;
 
 	if(idx < wl->view_offs || idx >= wl->view_offs + numvis) {
 		offs = idx - numvis / 2;
@@ -118,14 +120,14 @@ int tui_list_select(struct tui_widget *w, int idx)
 	return 0;
 }
 
-int tui_get_list_sel(struct tui_widget *w)
+int tui_get_list_cur(struct tui_widget *w)
 {
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
-	return wl->sel;
+	return wl->cur;
 }
 
-int tui_list_sel_next(struct tui_widget *w)
+int tui_list_cur_next(struct tui_widget *w)
 {
 	int nelem, numvis;
 	struct tui_list *wl = (struct tui_list*)w;
@@ -135,47 +137,47 @@ int tui_list_sel_next(struct tui_widget *w)
 
 	numvis = VISLINES(wl);
 
-	if(wl->sel + 1 >= nelem) {
+	if(wl->cur + 1 >= nelem) {
 		return -1;
 	}
 
-	if(++wl->sel - wl->view_offs >= numvis) {
-		wl->view_offs = wl->sel - numvis + 1;
+	if(++wl->cur - wl->view_offs >= numvis) {
+		wl->view_offs = wl->cur - numvis + 1;
 	}
 	wl->dirty = 1;
 	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
-int tui_list_sel_prev(struct tui_widget *w)
+int tui_list_cur_prev(struct tui_widget *w)
 {
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
 
-	if(wl->sel <= 0) {
+	if(wl->cur <= 0) {
 		return -1;
 	}
-	if(--wl->sel < wl->view_offs) {
-		wl->view_offs = wl->sel;
+	if(--wl->cur < wl->view_offs) {
+		wl->view_offs = wl->cur;
 	}
 	wl->dirty = 1;
 	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
-int tui_list_sel_start(struct tui_widget *w)
+int tui_list_cur_start(struct tui_widget *w)
 {
 	struct tui_list *wl = (struct tui_list*)w;
 	assert(wl->type == TUI_LIST);
 
-	wl->sel = 0;
+	wl->cur = 0;
 	wl->view_offs = 0;
 	wl->dirty = 1;
 	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
 }
 
-int tui_list_sel_end(struct tui_widget *w)
+int tui_list_cur_end(struct tui_widget *w)
 {
 	int nelem, numvis;
 	struct tui_list *wl = (struct tui_list*)w;
@@ -184,12 +186,62 @@ int tui_list_sel_end(struct tui_widget *w)
 	nelem = darr_size(wl->entries);
 	numvis = VISLINES(wl);
 
-	wl->sel = nelem - 1;
+	wl->cur = nelem - 1;
 	wl->view_offs = nelem - numvis;
 	if(wl->view_offs < 0) wl->view_offs = 0;
 	wl->dirty = 1;
 	tui_call_callback(w, TUI_ONMODIFY);
 	return 0;
+}
+
+int tui_list_toggle_sel(struct tui_widget *w, int idx)
+{
+	struct tui_list *wl = (struct tui_list*)w;
+	assert(wl->type == TUI_LIST);
+
+	if((wl->entries[idx].sel ^= 1)) {
+		wl->num_sel++;
+	} else {
+		if(wl->num_sel > 0) {
+			wl->num_sel--;
+		}
+	}
+	wl->dirty = 1;
+	return wl->entries[idx].sel;
+}
+
+int tui_list_is_sel(struct tui_widget *w, int idx)
+{
+	struct tui_list *wl = (struct tui_list*)w;
+	assert(wl->type == TUI_LIST);
+
+	return wl->entries[idx].sel;
+}
+
+int tui_list_num_sel(struct tui_widget *w)
+{
+	struct tui_list *wl = (struct tui_list*)w;
+	assert(wl->type == TUI_LIST);
+
+	return wl->num_sel;
+}
+
+int tui_list_get_sel(struct tui_widget *w, int *selv, int maxsel)
+{
+	int i, nitems;
+	struct tui_list *wl = (struct tui_list*)w;
+	assert(wl->type == TUI_LIST);
+
+	nitems = darr_size(wl->entries);
+	for(i=0; i<nitems; i++) {
+		if(maxsel <= 0) break;
+		if(wl->entries[i].sel) {
+			*selv++ = i;
+			maxsel--;
+		}
+	}
+
+	return wl->num_sel;
 }
 
 void tui_sort_list(struct tui_widget *w, int (*cmpfunc)(const void*, const void*))
@@ -211,7 +263,7 @@ void tui_sort_list(struct tui_widget *w, int (*cmpfunc)(const void*, const void*
 
 static void draw_list(struct tui_widget *w, void *cls)
 {
-	int i, x, y, num, idx, maxlen;
+	int i, x, y, num, idx, maxlen, issel;
 	struct tui_list *wl = (struct tui_list*)w;
 	char *text;
 
@@ -232,20 +284,22 @@ static void draw_list(struct tui_widget *w, void *cls)
 	x++;
 	for(i=0; i<num; i++) {
 		idx = i + wl->view_offs;
+		issel = wl->entries[idx].sel;
 
-		strncpy(text, wl->entries[idx], maxlen);
+		strncpy(text, wl->entries[idx].text, maxlen);
 		text[maxlen] = 0;
 
-		if(w->focus && idx == wl->sel) {
+		if(w->focus && idx == wl->cur) {
 			tg_bgcolor(TGFX_CYAN);
-			tg_fgcolor(TGFX_BLUE);
+			tg_fgcolor(issel ? TGFX_YELLOW : TGFX_BLUE);
 
 			tg_rect(0, x, ++y, maxlen, 1, 0);
 			tg_text(x, y, "%s", text);
 
 			tg_bgcolor(TGFX_BLUE);
-			tg_fgcolor(TGFX_CYAN);
+			tg_fgcolor(issel ? TGFX_YELLOW : TGFX_CYAN);
 		} else {
+			tg_fgcolor(issel ? TGFX_YELLOW : TGFX_CYAN);
 			tg_text(x, ++y, "%s", text);
 		}
 	}
