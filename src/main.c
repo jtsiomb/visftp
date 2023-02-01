@@ -661,8 +661,11 @@ skip:
 
 struct server *find_server(const char *name)
 {
-	int i, num = darr_size(srvlist);
+	int i, num;
 
+	if(!srvlist) return 0;
+
+	num = darr_size(srvlist);
 	for(i=0; i<num; i++) {
 		if(strcmp(srvlist[i].name, name) == 0) {
 			return srvlist + i;
