@@ -63,8 +63,21 @@ static void closelog(void)
 
 static void logmsg(const char *tag, const char *fmt, va_list ap)
 {
+	char *fname;
+#ifdef __DOS__
+	char *tmpdir = getenv("TEMP");
+	if(tmpdir) {
+		fname = alloca(strlen(tmpdir) + 16);
+		sprintf(fname, "%s\\visftp.log", tmpdir);
+	} else {
+		fname = "c:\\visftp.log";
+	}
+#else
+	fname = "/tmp/visftp.log";
+#endif
+
 	if(!logfile) {
-		if(!(logfile = fopen("visftp.log", "w"))) {
+		if(!(logfile = fopen(fname, "w"))) {
 			return;
 		}
 		setvbuf(logfile, 0, _IOLBF, 0);

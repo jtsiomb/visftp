@@ -4,4 +4,5 @@ fname=/etherdfs/visftp.zip
 
 rm -f $fname
 zip -x visftp -x \*.swp -x \*.o -x \*.obj -x \*.OBJ -x \*.LNK -x \*.MAP -x \
-	\*.log -x \*.LOG -x \*.d -x \*.EXE -x \*.exe -x \*.srv -x core -r $fname *
+	\*.log -x \*.LOG -x \*.d -x \*.EXE -x \*.exe -x \*.srv -x core -x *.map \
+	-r $fname *
