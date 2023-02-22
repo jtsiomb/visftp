@@ -56,6 +56,7 @@ static void view_done(struct ftp *ftp, struct ftp_transfer *xfer);
 static int read_servers(const char *fname);
 static struct server *find_server(const char *name);
 static int parse_args(int argc, char **argv);
+static int parse_host(const char *str);
 
 static struct ftp *ftp;
 static struct tui_widget *uilist[2];
@@ -65,6 +66,7 @@ static unsigned int dirty;
 
 static char *host = "localhost";
 static int port = 21;
+static const char *opt_user, *opt_pass;
 static struct server *srvlist;
 
 static char curdir[PATH_MAX + 1];
@@ -95,7 +97,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+#ifdef __DOS__
 	read_servers("visftp.srv");
+#else
+	read_servers(".visftp.srv");
+#endif
 
 	localdir = darr_alloc(0, sizeof *localdir);
 	getcwd(curdir, sizeof curdir);
@@ -105,8 +111,13 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if((srv = find_server(host)) && srv->user) {
-		ftp_auth(ftp, srv->user, srv->pass ? srv->pass : "foobar");
+	if((srv = find_server(host)) && !opt_user && srv->user) {
+		opt_user = srv->user;
+		opt_pass = srv->pass;
+	}
+
+	if(opt_user) {
+		ftp_auth(ftp, opt_user, opt_pass ? opt_pass : "foobar");
 	}
 
 	if(ftp_connect(ftp, srv ? srv->host : host, port) == -1) {
@@ -679,9 +690,23 @@ static void view_done(struct ftp *ftp, struct ftp_transfer *xfer)
 
 int read_servers(const char *fname)
 {
-	const char *str;
+	char *path;
+	const char *str, *cfgdir;
 	struct ts_node *ts, *node;
 	struct server srv;
+
+#ifdef __DOS__
+	cfgdir = getenv("VISFTP");
+#else
+	cfgdir = getenv("HOME");
+#endif
+
+	if(cfgdir) {
+		int len = strlen(fname) + strlen(cfgdir) + 1;
+		path = alloca(len + 1);
+		sprintf(path, "%s/%s", cfgdir, fname);
+		fname = path;
+	}
 
 	if(!(ts = ts_load(fname)) || strcmp(ts->name, "servers") != 0) {
 		return -1;
@@ -736,7 +761,7 @@ struct server *find_server(const char *name)
 	return 0;
 }
 
-static const char *usage = "Usage: %s [options] [hostname] [port]\n"
+static const char *usage = "Usage: %s [options] [[user[:pass]@]hostname] [port]\n"
 	"Options:\n"
 	"  -h: print usage information and exit\n";
 
@@ -761,7 +786,9 @@ int parse_args(int argc, char **argv)
 		} else {
 			switch(argidx++) {
 			case 0:
-				host = argv[i];
+				if(parse_host(argv[i]) == -1) {
+					return -1;
+				}
 				break;
 
 			case 1:
@@ -782,6 +809,27 @@ inval:
 	fprintf(stderr, "invalid argument: %s\n", argv[i]);
 	fprintf(stderr, usage, argv[0]);
 	return -1;
+}
+
+static int parse_host(const char *str)
+{
+	char *p;
+
+	if((p = strchr(str, '@'))) {
+		*p = 0;
+		opt_user = str;
+		host = p + 1;
+		if((p = strchr(str, ':'))) {
+			*p = 0;
+			opt_pass = p + 1;
+		} else {
+			opt_pass = 0;
+		}
+	} else {
+		opt_user = opt_pass = 0;
+	}
+
+	return 0;
 }
 
 #ifdef __DOS__

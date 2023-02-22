@@ -76,10 +76,6 @@ void view_update(void)
 	int x, i, c, ts;
 	char *ptr, *end;
 	struct span *span;
-	static const char *bntext[] = {
-		"Help  ", "      ", "      ", "Hex   ", "      ",
-		"      ", "Search", "      ", "      ", "Quit  "
-	};
 
 	if(!dirty) return;
 
@@ -124,6 +120,10 @@ void view_update(void)
 	}
 
 	if(dirty & UI_BUTTONS) {
+		static const char *bntext[] = {
+			"Help  ", "      ", "      ", "Hex   ", "      ",
+			"      ", "Search", "      ", "      ", "Quit  "
+		};
 		x = 0;
 		for(i=0; i<10; i++) {
 			tg_fgcolor(TGFX_WHITE);

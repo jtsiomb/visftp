@@ -66,6 +66,9 @@ static void logmsg(const char *tag, const char *fmt, va_list ap)
 	char *fname;
 #ifdef __DOS__
 	char *tmpdir = getenv("TEMP");
+	if(!tmpdir) {
+		tmpdir = getenv("VISFTP");
+	}
 	if(tmpdir) {
 		fname = alloca(strlen(tmpdir) + 16);
 		sprintf(fname, "%s\\visftp.log", tmpdir);
