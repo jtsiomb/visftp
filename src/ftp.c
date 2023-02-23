@@ -1039,7 +1039,6 @@ static void dproc_xfer(struct ftp *ftp, const char *buf, int sz, void *cls)
 		}
 
 		if(xfer->fp) {
-			((char*)buf)[sz] = 0;
 			fwrite(buf, 1, sz, xfer->fp);
 
 		} else if(xfer->mem) {

@@ -64,8 +64,8 @@ static struct tui_widget *uilist[2];
 static int focus;
 static unsigned int dirty;
 
-static char *host = "localhost";
-static int port = 21;
+static const char *opt_host = "localhost";
+static int opt_port = 21;
 static const char *opt_user, *opt_pass;
 static struct server *srvlist;
 
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if((srv = find_server(host)) && !opt_user && srv->user) {
+	if((srv = find_server(opt_host)) && !opt_user && srv->user) {
 		opt_user = srv->user;
 		opt_pass = srv->pass;
 	}
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
 		ftp_auth(ftp, opt_user, opt_pass ? opt_pass : "foobar");
 	}
 
-	if(ftp_connect(ftp, srv ? srv->host : host, port) == -1) {
+	if(ftp_connect(ftp, srv ? srv->host : opt_host, opt_port) == -1) {
 		ftp_free(ftp);
 		return 1;
 	}
@@ -215,7 +215,7 @@ static void updateui(void)
 		tg_fgcolor(ftp->status ? TGFX_GREEN : TGFX_RED);
 		tg_bgcolor(TGFX_BLACK);
 		tg_rect(0, 0, 0, 40, 1, 0);
-		tg_text(0, 0, "Srv: %s", ftp->status ? host : "-");
+		tg_text(0, 0, "Srv: %s", ftp->status ? opt_host : "-");
 		upd |= 0x8000;
 		prev_status = ftp->status;
 	}
@@ -792,7 +792,7 @@ int parse_args(int argc, char **argv)
 				break;
 
 			case 1:
-				if((port = atoi(argv[i])) <= 0) {
+				if((opt_port = atoi(argv[i])) <= 0) {
 					fprintf(stderr, "invalid port number: %s\n", argv[i]);
 					return -1;
 				}
@@ -818,7 +818,7 @@ static int parse_host(const char *str)
 	if((p = strchr(str, '@'))) {
 		*p = 0;
 		opt_user = str;
-		host = p + 1;
+		opt_host = p + 1;
 		if((p = strchr(str, ':'))) {
 			*p = 0;
 			opt_pass = p + 1;
@@ -826,6 +826,7 @@ static int parse_host(const char *str)
 			opt_pass = 0;
 		}
 	} else {
+		opt_host = str;
 		opt_user = opt_pass = 0;
 	}
 
