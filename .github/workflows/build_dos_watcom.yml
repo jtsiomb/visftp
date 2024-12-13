@@ -37,7 +37,7 @@ jobs:
         wmake
         cp ow/binw/dos4gw.exe .
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: visftp-dos
         path: |
